@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block title %}FinPrep | Home{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <p class="eyebrow">Finance Data Preparation & Review Workbench</p>
+    <h1>FinPrep</h1>
+    <p class="hero-copy">A professional workspace for preparing messy financial statements and reviewing clean datasets before analysis.</p>
+</section>
+
+<section class="card-grid">
+    <article class="card">
+        <h2>Prepare &amp; Clean Data</h2>
+        <p>Upload messy financial statements, clean mechanical issues, review mappings, validate periods, and approve the dataset.</p>
+        <a class="button" href="{{ url_for('clean') }}">Go to Prepare &amp; Clean</a>
+    </article>
+
+    <article class="card">
+        <h2>Company Database</h2>
+        <p>View companies and approved datasets saved in the project database.</p>
+        <a class="button" href="{{ url_for('companies') }}">View Company Database</a>
+    </article>
+
+    <article class="card card-muted">
+        <h2>Analysis Workspace</h2>
+        <p>Run financial review modules on approved datasets. Coming later.</p>
+        <a class="button button-secondary" href="{{ url_for('analysis') }}">Visit Analysis</a>
+    </article>
+</section>
+{% endblock %}

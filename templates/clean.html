@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}FinPrep | Prepare & Clean Data{% endblock %}
+
+{% block content %}
+<section class="page-intro">
+    <h1>Prepare &amp; Clean Data</h1>
+    <p>Upload messy financial statements, review cleaned data, and prepare for approval.</p>
+</section>
+
+<section class="workflow-steps">
+    <div class="step-indicator">
+        <div class="step active" data-step="1">
+            <div class="step-number">1</div>
+            <div class="step-label">Upload Statements</div>
+        </div>
+        <div class="step" data-step="2">
+            <div class="step-number">2</div>
+            <div class="step-label">Clean Data</div>
+        </div>
+        <div class="step" data-step="3">
+            <div class="step-number">3</div>
+            <div class="step-label">Review &amp; Edit</div>
+        </div>
+        <div class="step" data-step="4">
+            <div class="step-number">4</div>
+            <div class="step-label">Save Company Data</div>
+        </div>
+    </div>
+</section>
+
+<section class="upload-section">
+    <form method="POST" enctype="multipart/form-data" class="upload-form">
+        <div class="statement-group">
+            <h2>Financial Statements</h2>
+            <p class="form-hint">Upload CSV or Excel files for each statement type. All files are optional.</p>
+            
+            {% for field_key, label in [
+                ('income', 'Income Statement'),
+                ('balance_sheet', 'Balance Sheet'),
+                ('cash_flow', 'Cash Flow Statement')
+            ] %}
+            <div class="form-field">
+                <label for="{{ field_key }}_upload">{{ label }}</label>
+                <input 
+                    type="file" 
+                    id="{{ field_key }}_upload" 
+                    name="{{ field_key }}" 
+                    accept=".csv,.xlsx,.xls"
+                    class="file-input"
+                />
+                {% if errors.get(field_key) %}
+                <div class="error-message">{{ errors[field_key] }}</div>
+                {% endif %}
+                {% if uploaded_files.get(field_key) %}
+                <div class="success-message">✓ {{ uploaded_files[field_key] }} uploaded</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        
+        <button type="submit" class="button button-primary">Upload &amp; Clean</button>
+    </form>
+</section>
+
+{% if cleaned_previews %}
+<section class="preview-section">
+    <h2>Cleaned Data Preview</h2>
+    <p class="preview-hint">Preview of the first 20 rows after mechanical cleaning. Column names have been normalized, periods standardized, and numbers formatted.</p>
+    
+    {% for field_key, label in [
+        ('income', 'Income Statement'),
+        ('balance_sheet', 'Balance Sheet'),
+        ('cash_flow', 'Cash Flow Statement')
+    ] %}
+        {% if cleaned_previews.get(field_key) %}
+        <div class="preview-card">
+            <h3>{{ label }}</h3>
+            <div class="table-wrapper">
+                {{ cleaned_previews[field_key] | safe }}
+            </div>
+        </div>
+        {% endif %}
+    {% endfor %}
+</section>
+{% endif %}
+{% endblock %}
+

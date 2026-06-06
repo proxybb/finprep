@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}FinPrep{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header class="site-header">
+        <div class="container header-inner">
+            <a class="brand" href="{{ url_for('index') }}">FinPrep</a>
+            <nav class="main-nav" aria-label="Primary navigation">
+                <a href="{{ url_for('index') }}">Home</a>
+                <a href="{{ url_for('clean') }}">Prepare &amp; Clean</a>
+                <a href="{{ url_for('companies') }}">Company Database</a>
+                <a href="{{ url_for('analysis') }}">Analysis Workspace</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <p>FinPrep &mdash; Finance data preparation and review workbench.</p>
+        </div>
+    </footer>
+</body>
+</html>
