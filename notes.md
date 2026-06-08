@@ -139,3 +139,130 @@ Raw preview tables intentionally remain in analyst-friendly financial statement 
 ### Next suggested step
 
 Define the front-end upload states for each statement card: empty, selected, invalid file type, ready to preview, and failed to parse.
+
+## 12. Stage 1 mechanical cleaning update
+
+### What changed
+
+Stage 1 mechanical cleaning was implemented for in-memory pandas DataFrames. The new cleaning layer makes uploaded-style tabular data structurally parseable without applying accounting meaning, semantic mapping, validation, derivation, persistence, or UI upload handling.
+
+### Files touched
+
+- `cleaning/mechanical.py`
+- `cleaning/audit.py`
+- `tests/test_mechanical.py`
+- `notes.md`
+
+### Mechanical cleaning standard
+
+Mechanical cleaning is limited to safe, structural transformations that do not require accounting knowledge or interpretation of statement meaning. It can make obvious formatting cleanup decisions, but it must preserve unmapped line items and avoid canonical financial-field decisions.
+
+### What mechanical cleaning does
+
+- Drops fully blank rows and columns.
+- Treats null values and obvious blank-like strings as blank for dropping.
+- Strips leading/trailing whitespace from strings.
+- Collapses repeated internal whitespace to one space.
+- Converts obvious blank-like values such as `-`, `N/A`, `None`, and `NULL` to `None`.
+- Converts clear numeric-looking strings, including currency symbols, comma separators, currency prefixes, and parenthetical negatives.
+- Normalizes header text mechanically by lowercasing, replacing `&` with `and`, normalizing spaces, and removing safe unit/currency suffix noise.
+- Normalizes obvious period labels such as `FY2023`, `FY 2023`, `Dec-2022`, and `December 2022`.
+- Preserves quarter labels such as `Q1 2023`.
+- Returns an audit log summarizing dropped rows, dropped columns, normalized headers, missing-value conversions, numeric conversions, and period-label conversions.
+
+### What mechanical cleaning explicitly does not do
+
+- It does not decide that `sales` means `revenue`.
+- It does not decide that `operating income` means `ebit`.
+- It does not map labels to canonical financial fields.
+- It does not derive missing fields.
+- It does not validate accounting equations.
+- It does not change statement meaning.
+- It does not drop unmapped line items.
+- It does not detect statement orientation.
+- It does not persist data to SQL.
+
+### Current behavior
+
+- `run_mechanical_cleaning(df)` returns a dictionary with `cleaned_df` and `audit_log`.
+- `cleaned_df` is a mechanically cleaned pandas DataFrame.
+- `audit_log` is a serializable dictionary with summary counts and header-normalization entries.
+- Mechanical string-formatting changes are not warnings.
+- Test coverage now validates real mechanical behavior instead of placeholder assertions.
+
+### Known limitations
+
+- Mechanical cleaning is not yet wired to the `/data` upload UI.
+- Orientation detection is not implemented yet.
+- Schema validation is not implemented yet.
+- Label mapping is not implemented yet.
+- Safe derivations are not implemented yet.
+- No SQL persistence exists yet.
+- The audit log is intentionally lightweight and does not yet record every individual cell-level formatting change.
+
+### Next suggested step
+
+Define the in-memory handoff contract from mechanical cleaning to orientation detection, including the expected DataFrame shape and audit payload shape.
+
+## 13. File ingestion update
+
+### What changed
+
+A raw file ingestion layer was added for CSV and Excel uploads. It reads supported file-like objects into pandas DataFrames and raises clean user-facing exceptions for unsupported, empty, or unreadable files.
+
+### Files touched
+
+- `cleaning/ingest.py`
+- `tests/test_ingest.py`
+- `tests/test_mechanical.py`
+- `notes.md`
+
+### Mechanical boundary verification
+
+The mechanical cleaning tests now explicitly confirm that label formatting normalization does not become financial label mapping:
+
+- `Sales` may normalize to `sales`.
+- `Sales` must not normalize to `revenue`.
+- `Operating Income` may normalize to `operating income`.
+- `Operating Income` must not normalize to `ebit`.
+
+Label mapping remains a later-stage responsibility for `cleaning/mapping.py`.
+
+### Ingestion standard
+
+Ingestion only reads uploaded-style files into raw pandas DataFrames. It does not mechanically clean values, normalize labels, map financial meanings, derive fields, detect orientation, validate schemas, check identities, or persist data.
+
+### Supported file types
+
+- `.csv`
+- `.xlsx`
+- `.xls`
+
+Extension detection is case-insensitive.
+
+### Current behavior
+
+- `get_file_extension(filename)` returns a lowercase extension.
+- `is_supported_file(filename)` returns `True` only for supported CSV and Excel extensions.
+- `read_uploaded_file(file, filename=None)` reads a file-like object into a raw DataFrame based on the filename extension.
+- CSV ingestion uses `pandas.read_csv`.
+- Excel ingestion uses `pandas.read_excel`.
+- Pandas default NA parsing is disabled during ingestion so values such as `NA` stay raw until mechanical cleaning handles them.
+- Unsupported, empty, and unreadable files raise clean ingestion exceptions instead of exposing raw pandas tracebacks.
+- Tests cover CSV, XLSX, unsupported extensions, case-insensitive extension detection, empty/unreadable inputs, and the ingestion boundary.
+
+### Known limitations
+
+- Ingestion is not yet wired to the `/data` UI.
+- Uploaded files are not saved permanently.
+- Mechanical cleaning is separate.
+- Orientation detection is not implemented yet.
+- Schema validation is not implemented yet.
+- Label mapping is not implemented yet.
+- Safe derivations are not implemented yet.
+- Identity checks are not implemented yet.
+- No SQL persistence exists yet.
+
+### Next suggested step
+
+Wire the `/data` upload form to ingestion only, returning raw preview DataFrames while leaving mechanical cleaning as a separate explicit step.
