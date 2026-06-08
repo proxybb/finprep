@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Data{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <p class="eyebrow">Data intake</p>
+    <h1>Data</h1>
+    <p class="page-header__copy">Upload financial statements and preview source data before cleaning.</p>
+</section>
+
+<section class="upload-grid" aria-label="Financial statement upload placeholders">
+    {% set statements = [
+        "Income Statement",
+        "Balance Sheet",
+        "Cash Flow Statement"
+    ] %}
+    {% for statement in statements %}
+    <article class="upload-card">
+        <div class="upload-card__header">
+            <h2>{{ statement }}</h2>
+            <span>Placeholder</span>
+        </div>
+        <div class="upload-card__dropzone">
+            <p>File upload will be added later.</p>
+            <small>No file processed.</small>
+        </div>
+    </article>
+    {% endfor %}
+</section>
+
+<section class="section-header">
+    <h2>Raw previews</h2>
+    <p>Placeholder tables for layout only.</p>
+</section>
+
+<section class="table-stack" aria-label="Raw financial statement previews">
+    <article class="table-card" data-expandable-card>
+        <div class="table-card__header">
+            <div>
+                <h2>Income Statement raw preview</h2>
+                <p>Illustrative source-table structure.</p>
+            </div>
+            <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Line item</th>
+                        <th>2021</th>
+                        <th>2022</th>
+                        <th>2023</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th>Revenue</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                    <tr>
+                        <th>Cost of revenue</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                    <tr>
+                        <th>Operating income</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </article>
+
+    <article class="table-card" data-expandable-card>
+        <div class="table-card__header">
+            <div>
+                <h2>Balance Sheet raw preview</h2>
+                <p>Illustrative source-table structure.</p>
+            </div>
+            <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Line item</th>
+                        <th>2021</th>
+                        <th>2022</th>
+                        <th>2023</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th>Cash and equivalents</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                    <tr>
+                        <th>Total assets</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                    <tr>
+                        <th>Total liabilities</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </article>
+
+    <article class="table-card" data-expandable-card>
+        <div class="table-card__header">
+            <div>
+                <h2>Cash Flow Statement raw preview</h2>
+                <p>Illustrative source-table structure.</p>
+            </div>
+            <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Line item</th>
+                        <th>2021</th>
+                        <th>2022</th>
+                        <th>2023</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th>Cash from operations</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                    <tr>
+                        <th>Capital expenditures</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                    <tr>
+                        <th>Free cash flow</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </article>
+</section>
+
+<div class="action-row">
+    <a class="primary-button" href="{{ url_for('web.cleaned_data') }}">Clean data</a>
+</div>
+{% endblock %}

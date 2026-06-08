@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Cleaned Data Preview{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <p class="eyebrow">Data preview</p>
+    <h1>Cleaned Data Preview</h1>
+    <p class="page-header__copy">Review standardized outputs produced by the cleaning pipeline.</p>
+</section>
+
+<section class="stage-summary" aria-label="Cleaning stage summary">
+    {% set stages = [
+        "Mechanical cleaning",
+        "Orientation detection",
+        "Schema validation",
+        "Label mapping",
+        "Derivations",
+        "Identity checks"
+    ] %}
+    {% for stage in stages %}
+    <article class="stage-summary__item">
+        <span>{{ stage }}</span>
+        <strong>Placeholder</strong>
+    </article>
+    {% endfor %}
+</section>
+
+<section class="table-stack" aria-label="Cleaned financial statement previews">
+    <article class="table-card" data-expandable-card>
+        <div class="table-card__header">
+            <div>
+                <h2>Income Statement cleaned output</h2>
+                <p>Placeholder standardized output.</p>
+            </div>
+            <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Standard field</th>
+                        <th>FY2021</th>
+                        <th>FY2022</th>
+                        <th>FY2023</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th>revenue</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                    <tr>
+                        <th>cost_of_revenue</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                    <tr>
+                        <th>operating_income</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </article>
+
+    <article class="table-card" data-expandable-card>
+        <div class="table-card__header">
+            <div>
+                <h2>Balance Sheet cleaned output</h2>
+                <p>Placeholder standardized output.</p>
+            </div>
+            <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Standard field</th>
+                        <th>FY2021</th>
+                        <th>FY2022</th>
+                        <th>FY2023</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th>cash_and_equivalents</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                    <tr>
+                        <th>total_assets</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                    <tr>
+                        <th>total_liabilities</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </article>
+
+    <article class="table-card" data-expandable-card>
+        <div class="table-card__header">
+            <div>
+                <h2>Cash Flow Statement cleaned output</h2>
+                <p>Placeholder standardized output.</p>
+            </div>
+            <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Standard field</th>
+                        <th>FY2021</th>
+                        <th>FY2022</th>
+                        <th>FY2023</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th>cash_from_operations</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                    <tr>
+                        <th>capital_expenditures</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                    <tr>
+                        <th>free_cash_flow</th>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                        <td>Placeholder</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </article>
+</section>
+{% endblock %}

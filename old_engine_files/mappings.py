@@ -1,12 +1,3 @@
-"""
-Statement-specific mapping dictionaries for financial data normalization.
-
-These mappings translate mechanically-cleaned column names to standard
-financial field names. They are organized by statement type and are
-designed to be extended as new statement types or aliases are encountered.
-"""
-
-# Maps common period-related column names to "period"
 PERIOD_MAP = {
     "period": "period",
     "date": "period",
@@ -24,7 +15,6 @@ PERIOD_MAP = {
     "fy period": "period",
 }
 
-# Income Statement mappings
 INCOME_MAP = {
     # revenue
     "revenue": "revenue",
@@ -78,7 +68,6 @@ INCOME_MAP = {
     "profit for the period": "net_income",
 }
 
-# Balance Sheet mappings
 BALANCE_MAP = {
     # cash
     "cash and cash equivalents": "cash_and_equivalents",
@@ -112,7 +101,6 @@ BALANCE_MAP = {
     "total equity gross minority interest": "total_equity",
 }
 
-# Cash Flow Statement mappings
 CASHFLOW_MAP = {
     # operating cash flow
     "operating cash flow": "operating_cash_flow",
@@ -130,17 +118,12 @@ CASHFLOW_MAP = {
     "purchases of property and equipment": "capital_expenditures",
     "payments for acquisition of property plant and equipment": "capital_expenditures",
     "purchases of fixed assets": "capital_expenditures",
-    "purchases of property and equipment net of proceeds from sales and incentives": "capital_expenditures",
+    "purchases of property and equipment net of proceeds from sales and incentives": (
+        "capital_expenditures"
+    ),
     # free cash flow
     "free cash flow": "free_cash_flow",
     "free cash flows": "free_cash_flow",
-}
-
-# All mappings organized by statement type
-STATEMENT_MAPPINGS = {
-    "income": INCOME_MAP,
-    "balance": BALANCE_MAP,
-    "cashflow": CASHFLOW_MAP,
 }
 
 # These labels are intentionally preserved for user review because automatic
@@ -159,7 +142,6 @@ REVIEW_ONLY_LABELS = {
     "adjusted free cash flow",
 }
 
-# Numeric columns that can be safely converted to float
 NUMERIC_COLUMNS = {
     "revenue",
     "cogs",
@@ -184,7 +166,6 @@ NUMERIC_COLUMNS = {
     "free_cash_flow",
 }
 
-# Columns that should remain numeric but are marked for review
 REVIEW_NUMERIC_COLUMNS = {
     "depreciation and amortization",
     "depreciation and amortization expenses",
@@ -192,7 +173,6 @@ REVIEW_NUMERIC_COLUMNS = {
     "depreciation and amortisation expenses",
 }
 
-# Columns that should be stored as positive magnitudes (e.g., COGS as positive)
 POSITIVE_MAGNITUDE_COLUMNS = {
     "cogs",
     "operating_expenses",
@@ -200,3 +180,29 @@ POSITIVE_MAGNITUDE_COLUMNS = {
     "amortization",
     "capital_expenditures",
 }
+
+
+def get_mapping_for_statement(statement_type):
+    """Return the conservative mapping for one statement type."""
+    normalized_statement_type = str(statement_type).lower()
+
+    if "income" in normalized_statement_type:
+        return {**PERIOD_MAP, **INCOME_MAP}
+    if "balance" in normalized_statement_type:
+        return {**PERIOD_MAP, **BALANCE_MAP}
+    if (
+        "cashflow" in normalized_statement_type
+        or "cash flow" in normalized_statement_type
+    ):
+        return {**PERIOD_MAP, **CASHFLOW_MAP}
+
+    return PERIOD_MAP
+
+
+def map_column_name(normalized_name, statement_type):
+    """Map a normalized label when safe; otherwise leave it available for review."""
+    if normalized_name in REVIEW_ONLY_LABELS:
+        return normalized_name
+
+    mapping = get_mapping_for_statement(statement_type)
+    return mapping.get(normalized_name, normalized_name)

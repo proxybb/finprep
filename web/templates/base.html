@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Financial Data Workspace{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar" aria-label="Primary navigation">
+            <div class="sidebar__header">
+                <div class="sidebar__mark" aria-hidden="true"></div>
+                <span>Workspace</span>
+            </div>
+            <nav class="sidebar__nav">
+                <a class="sidebar__link {% if active_page == 'dashboard' %}is-active{% endif %}" href="{{ url_for('web.dashboard') }}">Dashboard</a>
+                <a class="sidebar__link {% if active_page == 'data' %}is-active{% endif %}" href="{{ url_for('web.data') }}">Data</a>
+                <a class="sidebar__link {% if active_page == 'companies' %}is-active{% endif %}" href="{{ url_for('web.companies') }}">Companies</a>
+                <a class="sidebar__link {% if active_page == 'analysis' %}is-active{% endif %}" href="{{ url_for('web.analysis') }}">Analysis</a>
+            </nav>
+        </aside>
+
+        <main class="content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

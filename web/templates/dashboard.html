@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <p class="eyebrow">Overview</p>
+    <h1>Dashboard</h1>
+    <p class="page-header__copy">A neutral starting point for future data preparation and review workflows.</p>
+</section>
+
+<section class="card-grid card-grid--three" aria-label="Workspace areas">
+    <a class="nav-card" href="{{ url_for('web.data') }}">
+        <span class="nav-card__label">Data</span>
+        <span class="nav-card__copy">Prepare the future cleaning workflow.</span>
+    </a>
+    <a class="nav-card" href="{{ url_for('web.companies') }}">
+        <span class="nav-card__label">Companies</span>
+        <span class="nav-card__copy">Placeholder for approved company records.</span>
+    </a>
+    <a class="nav-card" href="{{ url_for('web.analysis') }}">
+        <span class="nav-card__label">Analysis</span>
+        <span class="nav-card__copy">Placeholder for future analytical modules.</span>
+    </a>
+</section>
+{% endblock %}
