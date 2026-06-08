@@ -29,137 +29,151 @@
     {% endfor %}
 </section>
 
-<section class="section-header">
-    <h2>Raw previews</h2>
-    <p>Placeholder tables for layout only.</p>
-</section>
+<section class="preview-card" data-tabs>
+    <div class="preview-card__header">
+        <div>
+            <h2>Raw Preview</h2>
+            <p>Placeholder tables for layout only.</p>
+        </div>
+    </div>
 
-<section class="table-stack" aria-label="Raw financial statement previews">
-    <article class="table-card" data-expandable-card>
-        <div class="table-card__header">
-            <div>
-                <h2>Income Statement raw preview</h2>
-                <p>Illustrative source-table structure.</p>
-            </div>
-            <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
-        </div>
-        <div class="table-wrap">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Line item</th>
-                        <th>2021</th>
-                        <th>2022</th>
-                        <th>2023</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <th>Revenue</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                    <tr>
-                        <th>Cost of revenue</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                    <tr>
-                        <th>Operating income</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </article>
+    <div class="tab-list" role="tablist" aria-label="Raw financial statement previews">
+        <button class="tab-button is-active" type="button" role="tab" id="tab-income" aria-controls="panel-income" aria-selected="true" data-tab-button="income">Income Statement</button>
+        <button class="tab-button" type="button" role="tab" id="tab-balance" aria-controls="panel-balance" aria-selected="false" data-tab-button="balance">Balance Sheet</button>
+        <button class="tab-button" type="button" role="tab" id="tab-cash-flow" aria-controls="panel-cash-flow" aria-selected="false" data-tab-button="cash-flow">Cash Flow Statement</button>
+    </div>
 
-    <article class="table-card" data-expandable-card>
-        <div class="table-card__header">
-            <div>
-                <h2>Balance Sheet raw preview</h2>
-                <p>Illustrative source-table structure.</p>
+    <div class="tab-panel is-active" id="panel-income" role="tabpanel" aria-labelledby="tab-income" data-tab-panel="income">
+        <article class="table-card table-card--embedded" data-expandable-card>
+            <div class="table-card__header">
+                <div>
+                    <h2>Income Statement raw preview</h2>
+                    <p>Line items are rows; periods are columns.</p>
+                </div>
+                <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
             </div>
-            <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
-        </div>
-        <div class="table-wrap">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Line item</th>
-                        <th>2021</th>
-                        <th>2022</th>
-                        <th>2023</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <th>Cash and equivalents</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                    <tr>
-                        <th>Total assets</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                    <tr>
-                        <th>Total liabilities</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </article>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Line item</th>
+                            <th>2021</th>
+                            <th>2022</th>
+                            <th>2023</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th>Revenue</th>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                        </tr>
+                        <tr>
+                            <th>Cost of revenue</th>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                        </tr>
+                        <tr>
+                            <th>Operating income</th>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </div>
 
-    <article class="table-card" data-expandable-card>
-        <div class="table-card__header">
-            <div>
-                <h2>Cash Flow Statement raw preview</h2>
-                <p>Illustrative source-table structure.</p>
+    <div class="tab-panel" id="panel-balance" role="tabpanel" aria-labelledby="tab-balance" data-tab-panel="balance" hidden>
+        <article class="table-card table-card--embedded" data-expandable-card>
+            <div class="table-card__header">
+                <div>
+                    <h2>Balance Sheet raw preview</h2>
+                    <p>Line items are rows; periods are columns.</p>
+                </div>
+                <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
             </div>
-            <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
-        </div>
-        <div class="table-wrap">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Line item</th>
-                        <th>2021</th>
-                        <th>2022</th>
-                        <th>2023</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <th>Cash from operations</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                    <tr>
-                        <th>Capital expenditures</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                    <tr>
-                        <th>Free cash flow</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </article>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Line item</th>
+                            <th>2021</th>
+                            <th>2022</th>
+                            <th>2023</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th>Cash and equivalents</th>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                        </tr>
+                        <tr>
+                            <th>Total assets</th>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                        </tr>
+                        <tr>
+                            <th>Total liabilities</th>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </div>
+
+    <div class="tab-panel" id="panel-cash-flow" role="tabpanel" aria-labelledby="tab-cash-flow" data-tab-panel="cash-flow" hidden>
+        <article class="table-card table-card--embedded" data-expandable-card>
+            <div class="table-card__header">
+                <div>
+                    <h2>Cash Flow Statement raw preview</h2>
+                    <p>Line items are rows; periods are columns.</p>
+                </div>
+                <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Line item</th>
+                            <th>2021</th>
+                            <th>2022</th>
+                            <th>2023</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th>Cash from operations</th>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                        </tr>
+                        <tr>
+                            <th>Capital expenditures</th>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                        </tr>
+                        <tr>
+                            <th>Free cash flow</th>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                            <td>Placeholder</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </div>
 </section>
 
 <div class="action-row">

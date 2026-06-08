@@ -227,6 +227,7 @@ h2 {
 }
 
 .upload-card,
+.preview-card,
 .table-card,
 .stage-summary__item {
     border: 1px solid var(--color-border);
@@ -293,6 +294,62 @@ h2 {
     margin-bottom: 0;
 }
 
+.preview-card {
+    padding: 20px;
+}
+
+.preview-card__header {
+    margin-bottom: 16px;
+}
+
+.preview-card__header h2,
+.preview-card__header p {
+    margin-bottom: 4px;
+}
+
+.preview-card__header p {
+    color: var(--color-muted);
+    font-size: 14px;
+}
+
+.tab-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+}
+
+.tab-button {
+    min-height: 38px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-muted);
+    padding: 0 13px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.tab-button:hover,
+.tab-button:focus {
+    border-color: var(--color-border);
+    color: var(--color-text);
+    outline: none;
+}
+
+.tab-button.is-active {
+    border-color: rgba(245, 158, 11, 0.42);
+    background: #FEF3C7;
+    color: #92400E;
+}
+
+.tab-panel[hidden] {
+    display: none;
+}
+
 .table-stack {
     display: grid;
     gap: 20px;
@@ -300,6 +357,12 @@ h2 {
 
 .table-card {
     padding: 20px;
+}
+
+.table-card--embedded {
+    border: 0;
+    box-shadow: none;
+    padding: 0;
 }
 
 .table-card__header {
@@ -315,11 +378,12 @@ h2 {
     overflow-x: auto;
     border: 1px solid var(--color-border);
     border-radius: 8px;
+    background: #FFFFFF;
 }
 
 .data-table {
-    width: 100%;
-    min-width: 620px;
+    width: max-content;
+    min-width: min(100%, 620px);
     border-collapse: collapse;
     background: #FFFFFF;
     font-size: 14px;
@@ -441,6 +505,9 @@ h2 {
     display: flex;
     flex-direction: column;
     padding: 24px;
+    border: 1px solid var(--color-border);
+    background: var(--color-card);
+    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.24);
 }
 
 .table-card.is-fullscreen::before {
@@ -508,6 +575,10 @@ h2 {
 
     .primary-button {
         width: 100%;
+    }
+
+    .tab-list {
+        flex-direction: column;
     }
 
     .table-card.is-fullscreen {

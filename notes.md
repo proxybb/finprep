@@ -97,3 +97,45 @@ The Data area was updated from a static workflow-stage placeholder into a two-pa
 ### Next suggested step
 
 Define the upload contract and request/response flow for accepting three statement files without implementing cleaning transformations yet.
+
+## 11. Data page tabbed raw preview update
+
+### What changed
+
+The Data page layout was refined into a more compact analyst workspace. The three upload cards remain near the top, and the raw preview area is now a single tabbed card instead of three vertically stacked table cards.
+
+### Files touched
+
+- `web/templates/data.html`
+- `web/static/css/main.css`
+- `web/static/js/main.js`
+- `notes.md`
+
+### Reason for changing raw previews from vertical stack to tabs
+
+The vertical stack would become too long once real uploaded statement data is displayed. Tabs keep the workspace shorter and make it easier to compare one statement preview at a time without moving the upload section far from view.
+
+### Raw preview orientation decision
+
+Raw preview tables intentionally remain in analyst-friendly financial statement orientation: line items as rows and periods as columns. The raw preview is not converted into database or canonical format at this stage.
+
+### Current behavior
+
+- `/data` shows three placeholder upload cards for Income Statement, Balance Sheet, and Cash Flow Statement.
+- The Raw Preview card includes tabs for Income Statement, Balance Sheet, and Cash Flow Statement.
+- Only one raw preview table is visible at a time.
+- Tab switching happens with minimal JavaScript and no page reload.
+- Raw preview tables use placeholder data with line items as rows and periods as columns.
+- Table expand and collapse behavior still works for the active tab.
+- The `Clean data` button still navigates to `/data/cleaned`.
+
+### Known limitations
+
+- Upload cards are still placeholders.
+- Raw preview tables still use placeholder data.
+- Clean data button still navigates to `/data/cleaned` without running real cleaning.
+- No real ingestion, cleaning, or persistence exists yet.
+
+### Next suggested step
+
+Define the front-end upload states for each statement card: empty, selected, invalid file type, ready to preview, and failed to parse.
