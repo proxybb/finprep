@@ -223,6 +223,10 @@ h2 {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 18px;
+    margin-bottom: 18px;
+}
+
+.upload-form {
     margin-bottom: 32px;
 }
 
@@ -252,7 +256,7 @@ h2 {
     margin-bottom: 16px;
 }
 
-.upload-card__header span {
+.status-pill {
     border-radius: 999px;
     background: #FEF3C7;
     color: #92400E;
@@ -261,25 +265,48 @@ h2 {
     font-weight: 700;
 }
 
+.status-pill--ready {
+    background: #DCFCE7;
+    color: #166534;
+}
+
+.status-pill--error {
+    background: #FEE2E2;
+    color: #991B1B;
+}
+
 .upload-card__dropzone {
     display: flex;
     min-height: 124px;
     flex-direction: column;
     justify-content: center;
+    gap: 8px;
     border: 1px dashed #D1D5DB;
     border-radius: 8px;
     padding: 18px;
     background: #F9FAFB;
+    cursor: pointer;
 }
 
-.upload-card__dropzone p {
+.upload-card__label {
     margin-bottom: 4px;
     color: var(--color-text);
     font-weight: 700;
 }
 
+.upload-card__dropzone input {
+    max-width: 100%;
+    color: var(--color-muted);
+    font-size: 13px;
+}
+
 .upload-card__dropzone small {
     display: block;
+}
+
+.upload-card__error {
+    color: var(--color-error);
+    font-size: 13px;
 }
 
 .section-header {
@@ -464,8 +491,42 @@ h2 {
 
 .action-row {
     display: flex;
+    gap: 12px;
     justify-content: flex-end;
     margin-top: 24px;
+}
+
+.action-row--split {
+    justify-content: space-between;
+    margin-top: 0;
+}
+
+.empty-state {
+    display: grid;
+    gap: 4px;
+    border: 1px dashed #D1D5DB;
+    border-radius: 8px;
+    padding: 24px;
+    background: #F9FAFB;
+}
+
+.empty-state strong {
+    color: var(--color-text);
+    font-size: 14px;
+}
+
+.empty-state span {
+    color: var(--color-muted);
+    font-size: 14px;
+}
+
+.empty-state--error {
+    border-color: #FCA5A5;
+    background: #FEF2F2;
+}
+
+.empty-state--error strong {
+    color: var(--color-error);
 }
 
 .stage-summary {
@@ -569,11 +630,14 @@ h2 {
         flex-direction: column;
     }
 
-    .action-row {
+    .action-row,
+    .action-row--split {
+        flex-direction: column;
         justify-content: stretch;
     }
 
-    .primary-button {
+    .primary-button,
+    .secondary-button {
         width: 100%;
     }
 

@@ -9,174 +9,112 @@
     <p class="page-header__copy">Upload financial statements and preview source data before cleaning.</p>
 </section>
 
-<section class="upload-grid" aria-label="Financial statement upload placeholders">
-    {% set statements = [
-        "Income Statement",
-        "Balance Sheet",
-        "Cash Flow Statement"
-    ] %}
-    {% for statement in statements %}
-    <article class="upload-card">
-        <div class="upload-card__header">
-            <h2>{{ statement }}</h2>
-            <span>Placeholder</span>
-        </div>
-        <div class="upload-card__dropzone">
-            <p>File upload will be added later.</p>
-            <small>No file processed.</small>
-        </div>
-    </article>
-    {% endfor %}
-</section>
+<form class="upload-form" method="post" enctype="multipart/form-data">
+    <section class="upload-grid" aria-label="Financial statement uploads">
+        {% for statement in statements %}
+            {% set preview = previews[statement.key] %}
+            <article class="upload-card">
+                <div class="upload-card__header">
+                    <h2>{{ statement.label }}</h2>
+                    {% if preview.error %}
+                        <span class="status-pill status-pill--error">Error</span>
+                    {% elif preview.filename %}
+                        <span class="status-pill status-pill--ready">Loaded</span>
+                    {% else %}
+                        <span class="status-pill">Empty</span>
+                    {% endif %}
+                </div>
+                <label class="upload-card__dropzone" for="{{ statement.field_name }}">
+                    <span class="upload-card__label">Choose CSV or Excel file</span>
+                    <input id="{{ statement.field_name }}" name="{{ statement.field_name }}" type="file" accept=".csv,.xlsx,.xls">
+                    {% if preview.filename %}
+                        <small>{{ preview.filename }}</small>
+                    {% else %}
+                        <small>No file selected.</small>
+                    {% endif %}
+                    {% if preview.error %}
+                        <strong class="upload-card__error">{{ preview.error }}</strong>
+                    {% endif %}
+                </label>
+            </article>
+        {% endfor %}
+    </section>
+
+    <div class="action-row action-row--split">
+        <button class="secondary-button" type="submit">Preview uploaded data</button>
+        <a class="primary-button" href="{{ url_for('web.cleaned_data') }}">Clean data</a>
+    </div>
+</form>
 
 <section class="preview-card" data-tabs>
     <div class="preview-card__header">
         <div>
             <h2>Raw Preview</h2>
-            <p>Placeholder tables for layout only.</p>
+            <p>First 50 rows shown exactly as ingested.</p>
         </div>
     </div>
 
     <div class="tab-list" role="tablist" aria-label="Raw financial statement previews">
-        <button class="tab-button is-active" type="button" role="tab" id="tab-income" aria-controls="panel-income" aria-selected="true" data-tab-button="income">Income Statement</button>
-        <button class="tab-button" type="button" role="tab" id="tab-balance" aria-controls="panel-balance" aria-selected="false" data-tab-button="balance">Balance Sheet</button>
-        <button class="tab-button" type="button" role="tab" id="tab-cash-flow" aria-controls="panel-cash-flow" aria-selected="false" data-tab-button="cash-flow">Cash Flow Statement</button>
+        {% for statement in statements %}
+            <button class="tab-button {% if loop.first %}is-active{% endif %}" type="button" role="tab" id="{{ statement.tab_id }}" aria-controls="{{ statement.panel_id }}" aria-selected="{{ 'true' if loop.first else 'false' }}" data-tab-button="{{ statement.key }}">{{ statement.label }}</button>
+        {% endfor %}
     </div>
 
-    <div class="tab-panel is-active" id="panel-income" role="tabpanel" aria-labelledby="tab-income" data-tab-panel="income">
-        <article class="table-card table-card--embedded" data-expandable-card>
-            <div class="table-card__header">
-                <div>
-                    <h2>Income Statement raw preview</h2>
-                    <p>Line items are rows; periods are columns.</p>
+    {% for statement in statements %}
+        {% set preview = previews[statement.key] %}
+        <div class="tab-panel {% if loop.first %}is-active{% endif %}" id="{{ statement.panel_id }}" role="tabpanel" aria-labelledby="{{ statement.tab_id }}" data-tab-panel="{{ statement.key }}" {% if not loop.first %}hidden{% endif %}>
+            <article class="table-card table-card--embedded" data-expandable-card>
+                <div class="table-card__header">
+                    <div>
+                        <h2>{{ statement.label }} raw preview</h2>
+                        {% if preview.table %}
+                            <p>{{ preview.filename }} · {{ preview.table.row_count }} rows × {{ preview.table.column_count }} columns{% if preview.table.is_truncated %} · first {{ preview.table.preview_row_count }} shown{% endif %}</p>
+                        {% elif preview.error %}
+                            <p>{{ preview.filename }} · preview unavailable</p>
+                        {% else %}
+                            <p>No file uploaded yet.</p>
+                        {% endif %}
+                    </div>
+                    <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
                 </div>
-                <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
-            </div>
-            <div class="table-wrap">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Line item</th>
-                            <th>2021</th>
-                            <th>2022</th>
-                            <th>2023</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <th>Revenue</th>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                        </tr>
-                        <tr>
-                            <th>Cost of revenue</th>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                        </tr>
-                        <tr>
-                            <th>Operating income</th>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </article>
-    </div>
 
-    <div class="tab-panel" id="panel-balance" role="tabpanel" aria-labelledby="tab-balance" data-tab-panel="balance" hidden>
-        <article class="table-card table-card--embedded" data-expandable-card>
-            <div class="table-card__header">
-                <div>
-                    <h2>Balance Sheet raw preview</h2>
-                    <p>Line items are rows; periods are columns.</p>
-                </div>
-                <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
-            </div>
-            <div class="table-wrap">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Line item</th>
-                            <th>2021</th>
-                            <th>2022</th>
-                            <th>2023</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <th>Cash and equivalents</th>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                        </tr>
-                        <tr>
-                            <th>Total assets</th>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                        </tr>
-                        <tr>
-                            <th>Total liabilities</th>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </article>
-    </div>
-
-    <div class="tab-panel" id="panel-cash-flow" role="tabpanel" aria-labelledby="tab-cash-flow" data-tab-panel="cash-flow" hidden>
-        <article class="table-card table-card--embedded" data-expandable-card>
-            <div class="table-card__header">
-                <div>
-                    <h2>Cash Flow Statement raw preview</h2>
-                    <p>Line items are rows; periods are columns.</p>
-                </div>
-                <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
-            </div>
-            <div class="table-wrap">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Line item</th>
-                            <th>2021</th>
-                            <th>2022</th>
-                            <th>2023</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <th>Cash from operations</th>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                        </tr>
-                        <tr>
-                            <th>Capital expenditures</th>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                        </tr>
-                        <tr>
-                            <th>Free cash flow</th>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                            <td>Placeholder</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </article>
-    </div>
+                {% if preview.table %}
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    {% for header in preview.table.headers %}
+                                        <th>{{ header }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in preview.table.rows %}
+                                    <tr>
+                                        {% for value in row %}
+                                            {% if loop.first %}
+                                                <th scope="row">{{ value }}</th>
+                                            {% else %}
+                                                <td>{{ value }}</td>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% elif preview.error %}
+                    <div class="empty-state empty-state--error">
+                        <strong>{{ preview.error }}</strong>
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <strong>No upload preview available.</strong>
+                        <span>Select a file above and preview it here.</span>
+                    </div>
+                {% endif %}
+            </article>
+        </div>
+    {% endfor %}
 </section>
-
-<div class="action-row">
-    <a class="primary-button" href="{{ url_for('web.cleaned_data') }}">Clean data</a>
-</div>
 {% endblock %}

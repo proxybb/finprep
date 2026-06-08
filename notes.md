@@ -266,3 +266,63 @@ Extension detection is case-insensitive.
 ### Next suggested step
 
 Wire the `/data` upload form to ingestion only, returning raw preview DataFrames while leaving mechanical cleaning as a separate explicit step.
+
+## 14. Data upload raw preview update
+
+### What changed
+
+The `/data` page now accepts uploaded statement files and renders raw preview tables in the existing tabbed Raw Preview area. The upload path uses `cleaning.ingest.read_uploaded_file` and does not run mechanical cleaning or later-stage financial workflow logic.
+
+### Files touched
+
+- `web/routes.py`
+- `web/templates/data.html`
+- `web/static/css/main.css`
+- `tests/test_routes.py`
+- `notes.md`
+
+### New `/data` upload-preview behavior
+
+- `/data` renders normally with no uploaded files.
+- The page uses one upload form for Income Statement, Balance Sheet, and Cash Flow Statement files.
+- Each statement upload card has a real file input.
+- `POST /data` reads each provided file into a raw pandas DataFrame.
+- Raw previews render in the existing Income Statement, Balance Sheet, and Cash Flow Statement tabs.
+- Each uploaded preview shows filename and shape, such as `filename.csv · 42 rows × 6 columns`.
+- Preview tables show the first 50 rows by default.
+- If one file fails ingestion, that statement shows a clean error while the page remains usable.
+- The existing `Clean data` button remains visible and continues placeholder navigation to `/data/cleaned`.
+
+### Supported upload formats
+
+- CSV
+- XLSX
+- XLS
+
+### Raw preview boundary confirmation
+
+Raw preview preserves uploaded values and labels as ingested. It does not run mechanical cleaning, orientation detection, schema validation, label mapping, derivations, identity checks, deduplication, conflict handling, persistence, or analysis features.
+
+Examples covered by route tests:
+
+- `$1,200` remains `$1,200` in raw preview.
+- `Operating Income` remains `Operating Income`.
+- `Operating Income` is not normalized to `operating income`.
+- `Operating Income` is not mapped to `ebit`.
+
+### Current limitations
+
+- Uploaded files are previewed but not saved permanently.
+- Mechanical cleaning is implemented but not yet connected to the UI.
+- The `Clean data` button does not run cleaning yet.
+- Orientation detection is not implemented yet.
+- Schema validation is not implemented yet.
+- Label mapping is not implemented yet.
+- Safe derivations are not implemented yet.
+- Identity checks are not implemented yet.
+- Deduplication and conflict handling are not implemented yet.
+- No SQL persistence exists yet.
+
+### Next suggested step
+
+Connect the `Clean data` action to mechanical cleaning for the uploaded in-memory previews, while still keeping orientation detection, schema validation, label mapping, derivations, identity checks, deduplication, persistence, and analysis features out of that step.
