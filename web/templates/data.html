@@ -68,9 +68,9 @@
                     <div>
                         <h2>{{ statement.label }} raw preview</h2>
                         {% if preview.table %}
-                            <p>{{ preview.filename }} · {{ preview.table.row_count }} rows × {{ preview.table.column_count }} columns{% if preview.table.is_truncated %} · first {{ preview.table.preview_row_count }} shown{% endif %}</p>
+                            <p>{{ preview.filename }} - {{ preview.table.row_count }} rows x {{ preview.table.column_count }} columns{% if preview.table.is_truncated %} - first {{ preview.table.preview_row_count }} shown{% endif %}</p>
                         {% elif preview.error %}
-                            <p>{{ preview.filename }} · preview unavailable</p>
+                            <p>{{ preview.filename }} - preview unavailable</p>
                         {% else %}
                             <p>No file uploaded yet.</p>
                         {% endif %}

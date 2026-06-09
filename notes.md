@@ -288,7 +288,7 @@ The `/data` page now accepts uploaded statement files and renders raw preview ta
 - Each statement upload card has a real file input.
 - `POST /data` reads each provided file into a raw pandas DataFrame.
 - Raw previews render in the existing Income Statement, Balance Sheet, and Cash Flow Statement tabs.
-- Each uploaded preview shows filename and shape, such as `filename.csv · 42 rows × 6 columns`.
+- Each uploaded preview shows filename and shape, such as `filename.csv - 42 rows x 6 columns`.
 - Preview tables show the first 50 rows by default.
 - If one file fails ingestion, that statement shows a clean error while the page remains usable.
 - The existing `Clean data` button remains visible and continues placeholder navigation to `/data/cleaned`.

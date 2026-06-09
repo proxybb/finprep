@@ -56,7 +56,7 @@ def test_uploading_csv_for_one_statement_shows_raw_preview():
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "income.csv" in html
-    assert "2 rows × 2 columns" in html
+    assert "2 rows x 2 columns" in html
     assert "$1,200" in html
     assert "Operating Income" in html
     assert "operating income" not in html
@@ -73,7 +73,7 @@ def test_uploading_xlsx_for_one_statement_shows_raw_preview():
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "balance.xlsx" in html
-    assert "2 rows × 2 columns" in html
+    assert "2 rows x 2 columns" in html
     assert "Total Assets" in html
 
 
