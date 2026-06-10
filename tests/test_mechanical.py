@@ -64,7 +64,15 @@ def test_clean_numeric_value_converts_currency_and_comma_strings():
     assert clean_numeric_value(" 153000 ") == 153000
     assert clean_numeric_value("€2,500") == 2500
     assert clean_numeric_value("£2,500") == 2500
-    assert clean_numeric_value("JOD 2,500") == 2500
+
+
+def test_clean_numeric_value_strips_known_currency_codes_only():
+    assert clean_numeric_value("USD 1,200") == 1200
+    assert clean_numeric_value("1,200 USD") == 1200
+    assert clean_numeric_value("JOD 1,200") == 1200
+    assert clean_numeric_value("1,200 JOD") == 1200
+    assert clean_numeric_value("ABC 100") == "ABC 100"
+    assert clean_numeric_value("XYZ 1,200") == "XYZ 1,200"
 
 
 def test_clean_numeric_value_converts_parenthetical_negatives():
@@ -88,6 +96,27 @@ def test_headers_are_normalized_without_semantic_mapping():
     assert normalize_header_text("Sales") != "revenue"
     assert normalize_header_text("Operating Income") == "operating income"
     assert normalize_header_text("Operating Income") != "ebit"
+    assert normalize_header_text("Total Revenue") == "total revenue"
+    assert normalize_header_text("Total Revenue") != "revenue"
+
+
+def test_header_punctuation_is_normalized_mechanically():
+    assert normalize_header_text("Total_Revenue") == "total revenue"
+    assert normalize_header_text("Total-Revenue") == "total revenue"
+    assert normalize_header_text("Total/Revenue") == "total revenue"
+    assert normalize_header_text("Total.Revenue") == "total revenue"
+    assert normalize_header_text("Shareholders' Equity") == "shareholders equity"
+
+
+def test_header_unit_noise_is_removed_mechanically():
+    assert normalize_header_text("Revenue ($MM)") == "revenue"
+    assert normalize_header_text("Revenue ($M)") == "revenue"
+    assert normalize_header_text("Revenue US Dollars") == "revenue"
+    assert normalize_header_text("Revenue USD") == "revenue"
+    assert normalize_header_text("Revenue millions") == "revenue"
+    assert normalize_header_text("Revenue thousands") == "revenue"
+    assert normalize_header_text("Revenue in millions") == "revenue"
+    assert normalize_header_text("Revenue in thousands") == "revenue"
 
 
 def test_period_labels_normalize_obvious_annual_periods_and_preserve_quarters():

@@ -438,3 +438,40 @@ Raw and cleaned preview tables were adjusted to stay compact instead of stretchi
 ### Next suggested step
 
 Implement orientation detection as the next automated pipeline stage after mechanical cleaning, while continuing to leave duplicate period conflicts, unsupported forecast/estimate periods, label mapping, derivations, and identity checks to their later stages.
+
+## 17. Mechanical cleaning final conservative refinements
+
+### What changed
+
+Currency parsing configuration was moved out of mechanical cleaning into
+`configs/currencies.py`. The supported currency-code list is used only to strip
+known currency-code noise from numeric-looking strings during mechanical parsing;
+it does not perform currency conversion or semantic label mapping.
+
+Header normalization was expanded to cover more mechanical text cleanup:
+underscores, hyphens, slashes, periods, commas, and newlines become spaces,
+apostrophes are removed, repeated whitespace is collapsed, and common unit
+suffixes such as `$MM`, `$M`, `US Dollars`, `USD`, `millions`, and `thousands`
+are removed from header labels.
+
+Unknown uppercase tokens around numbers are now preserved. For example,
+`USD 1,200` and `1,200 JOD` are parsed as numeric values, but `ABC 100` and
+`XYZ 1,200` remain text.
+
+### Known limitations
+
+- This is parsing configuration only, not currency conversion.
+- Mechanical cleaning still does not map labels such as `Sales` to `revenue` or
+  `Operating Income` to `ebit`.
+- Duplicate period/year columns are still preserved for later validation.
+- Forecast and estimate periods such as `2024E` and `2025F` are still preserved
+  for later validation.
+- Orientation detection, schema validation, derivations, identity checks, SQL
+  persistence, metrics, charts, summaries, red flags, valuation, and AI are not
+  implemented in this stage.
+
+### Next suggested step
+
+Add the next pipeline stage only after the mechanical-cleaning contract is
+accepted, with duplicate-period conflict handling, label mapping, validation,
+and derivations remaining outside the mechanical layer.

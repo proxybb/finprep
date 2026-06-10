@@ -8,6 +8,7 @@ from typing import Any
 
 import pandas as pd
 
+from configs.currencies import SUPPORTED_CURRENCY_CODES
 from cleaning.audit import MechanicalAuditLog
 
 
@@ -51,6 +52,19 @@ MONTH_NAMES = (
     "november",
     "dec",
     "december",
+)
+
+HEADER_SEPARATOR_PATTERN = re.compile(r"[_\-/.,\r\n]+")
+HEADER_APOSTROPHE_PATTERN = re.compile(r"['\u2019]")
+HEADER_UNIT_SUFFIX_PATTERNS = (
+    r"\s*\(\s*(?:\$?\s*(?:mm|m)|usd|us dollars|millions|thousands)\s*\)\s*$",
+    r"\s*\$mm\s*$",
+    r"\s*\$m\s*$",
+    r"\s*\$\s*$",
+    r"\s*us dollars\s*$",
+    r"\s*usd\s*$",
+    r"\s*(?:in\s+)?millions\s*$",
+    r"\s*(?:in\s+)?thousands\s*$",
 )
 
 
@@ -118,8 +132,9 @@ def clean_numeric_value(value: Any) -> Any:
     if is_parenthetical_negative:
         text = text[1:-1].strip()
 
-    text = re.sub(r"^[A-Z]{3}\s+", "", text)
-    text = re.sub(r"\s+[A-Z]{3}$", "", text)
+    supported_codes = "|".join(re.escape(code) for code in SUPPORTED_CURRENCY_CODES)
+    text = re.sub(rf"^(?:{supported_codes})\s+", "", text, flags=re.IGNORECASE)
+    text = re.sub(rf"\s+(?:{supported_codes})$", "", text, flags=re.IGNORECASE)
     text = text.replace("$", "").replace("€", "").replace("£", "")
     text = text.replace(",", "").strip()
 
@@ -139,20 +154,14 @@ def normalize_header_text(label: Any) -> Any:
 
     normalized = normalize_string_value(label).lower()
     normalized = normalized.replace("&", "and")
+    normalized = HEADER_APOSTROPHE_PATTERN.sub("", normalized)
+    normalized = HEADER_SEPARATOR_PATTERN.sub(" ", normalized)
     normalized = normalize_string_value(normalized)
 
-    suffix_patterns = (
-        r"\s*\(\s*\$?\s*(?:m|mm|usd)?\s*\)\s*$",
-        r"\s*\$m\s*$",
-        r"\s*\$\s*$",
-        r"\s*usd\s*$",
-        r"\s*in millions\s*$",
-        r"\s*in thousands\s*$",
-    )
     changed = True
     while changed:
         changed = False
-        for pattern in suffix_patterns:
+        for pattern in HEADER_UNIT_SUFFIX_PATTERNS:
             next_value = re.sub(pattern, "", normalized, flags=re.IGNORECASE).strip()
             if next_value != normalized:
                 normalized = next_value
