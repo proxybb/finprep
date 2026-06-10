@@ -7,13 +7,13 @@ from typing import Any
 from uuid import uuid4
 
 import pandas as pd
-from flask import Blueprint, render_template, request, session
+from flask import Blueprint, redirect, render_template, request, session, url_for
 from werkzeug.utils import secure_filename
 
 from cleaning.ingest import IngestionError, read_uploaded_file
 from cleaning.mechanical import run_mechanical_cleaning
 from cleaning.orientation import normalize_orientation
-from cleaning.table_boundary import extract_leading_metadata, normalize_table_boundary
+from cleaning.table_boundary import normalize_table_boundary
 
 
 bp = Blueprint("web", __name__)
@@ -114,10 +114,22 @@ def _render_cell_value(value: Any) -> str:
     return str(value)
 
 
+def _is_missing_cell(value: Any) -> bool:
+    if value is None:
+        return True
+    try:
+        if isinstance(value, float) and math.isnan(value):
+            return True
+    except TypeError:
+        pass
+    return False
+
+
 def build_table_preview(
     df: pd.DataFrame,
     row_limit: int = PREVIEW_ROW_LIMIT,
     first_column_header: str | None = None,
+    highlight_missing: bool = False,
 ) -> dict:
     """Convert a DataFrame preview into simple Jinja-renderable table data."""
     preview_df = df.head(row_limit)
@@ -128,7 +140,13 @@ def build_table_preview(
     return {
         "headers": headers,
         "rows": [
-            [_render_cell_value(value) for value in row]
+            [
+                {
+                    "value": _render_cell_value(value),
+                    "is_missing": highlight_missing and _is_missing_cell(value),
+                }
+                for value in row
+            ]
             for row in preview_df.itertuples(index=False, name=None)
         ],
         "row_count": len(df.index),
@@ -226,22 +244,17 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
 
         try:
             raw_df = _read_saved_statement(upload_id, metadata_entry)
-            raw_metadata = extract_leading_metadata(raw_df)
             cleaning_result = run_mechanical_cleaning(raw_df)
             cleaned_df = cleaning_result["cleaned_df"]
             boundary_result = normalize_table_boundary(cleaned_df)
             orientation_result = normalize_orientation(boundary_result.dataframe)
-            company_display_name = (
-                raw_metadata.get("company")
-                or boundary_result.metadata.get("company")
-                or ""
-            )
             results[statement["key"]] = {
                 "filename": metadata_entry["filename"],
                 "error": None,
                 "table": build_table_preview(
                     orientation_result.dataframe,
-                    first_column_header=company_display_name,
+                    first_column_header="",
+                    highlight_missing=True,
                 ),
                 "audit_log": cleaning_result["audit_log"],
                 "orientation": {
@@ -254,7 +267,6 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
                     "status": boundary_result.status,
                     "action": boundary_result.action,
                     "message": boundary_result.message,
-                    "metadata": boundary_result.metadata,
                 },
             }
         except (IngestionError, OSError, KeyError, ValueError) as exc:
@@ -276,8 +288,14 @@ def dashboard():
     return render_template("dashboard.html", active_page="dashboard")
 
 
-@bp.route("/data", methods=["GET", "POST"])
+@bp.route("/data")
 def data():
+    """Redirect to the upload/raw preview step of the data workflow."""
+    return redirect(url_for("web.data_upload"))
+
+
+@bp.route("/data/upload", methods=["GET", "POST"])
+def data_upload():
     """Render the data intake page and raw upload previews."""
     if request.method == "POST":
         previews = _build_upload_previews(request.files)

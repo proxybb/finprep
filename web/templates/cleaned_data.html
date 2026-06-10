@@ -12,6 +12,7 @@
 <section class="stage-summary" aria-label="Cleaning stage summary">
     {% set stages = [
         ("Mechanical cleaning", "Runs now"),
+        ("Table-boundary cleanup", "Runs now"),
         ("Orientation detection", "Runs now"),
         ("Schema validation", "Not implemented"),
         ("Label mapping", "Not implemented"),
@@ -30,9 +31,13 @@
     <section class="empty-state">
         <strong>No uploaded files are available to clean.</strong>
         <span>Upload one or more statements on the Data page before running mechanical cleaning.</span>
-        <a class="secondary-button empty-state__action" href="{{ url_for('web.data') }}">Back to Data</a>
+        <a class="secondary-button empty-state__action" href="{{ url_for('web.data_upload') }}">Back to upload/raw preview</a>
     </section>
 {% else %}
+    <div class="action-row action-row--start">
+        <a class="secondary-button" href="{{ url_for('web.data_upload') }}">Back to upload/raw preview</a>
+    </div>
+
     <section class="preview-card" data-tabs>
         <div class="preview-card__header">
             <div>
@@ -86,10 +91,11 @@
                                     {% for row in result.table.rows %}
                                         <tr>
                                             {% for value in row %}
+                                                {% set cell_class = 'data-table__cell--missing' if value.is_missing else '' %}
                                                 {% if loop.first %}
-                                                    <th scope="row">{{ value }}</th>
+                                                    <th scope="row" class="{{ cell_class }}">{{ value.value }}</th>
                                                 {% else %}
-                                                    <td>{{ value }}</td>
+                                                    <td class="{{ cell_class }}">{{ value.value }}</td>
                                                 {% endif %}
                                             {% endfor %}
                                         </tr>

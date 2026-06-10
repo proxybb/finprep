@@ -15,7 +15,7 @@
             </div>
             <nav class="sidebar__nav">
                 <a class="sidebar__link {% if active_page == 'dashboard' %}is-active{% endif %}" href="{{ url_for('web.dashboard') }}">Dashboard</a>
-                <a class="sidebar__link {% if active_page == 'data' %}is-active{% endif %}" href="{{ url_for('web.data') }}">Data</a>
+                <a class="sidebar__link {% if active_page == 'data' %}is-active{% endif %}" href="{{ url_for('web.data_upload') }}">Data</a>
                 <a class="sidebar__link {% if active_page == 'companies' %}is-active{% endif %}" href="{{ url_for('web.companies') }}">Companies</a>
                 <a class="sidebar__link {% if active_page == 'analysis' %}is-active{% endif %}" href="{{ url_for('web.analysis') }}">Analysis</a>
             </nav>

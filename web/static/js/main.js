@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
     const cards = document.querySelectorAll("[data-expandable-card]");
     const tabGroups = document.querySelectorAll("[data-tabs]");
+    const uploadForms = document.querySelectorAll("[data-upload-form]");
 
     cards.forEach((card) => {
         const button = card.querySelector("[data-expand-button]");
@@ -37,6 +38,33 @@ document.addEventListener("DOMContentLoaded", () => {
                     panel.hidden = !isActive;
                 });
             });
+        });
+    });
+
+    uploadForms.forEach((form) => {
+        const fileInputs = form.querySelectorAll("input[type='file']");
+        const submitButton = form.querySelector("[data-submit-label]");
+
+        fileInputs.forEach((input) => {
+            input.addEventListener("change", () => {
+                const filenameLabel = input
+                    .closest(".upload-card__dropzone")
+                    ?.querySelector("[data-selected-filename]");
+
+                if (!filenameLabel) {
+                    return;
+                }
+
+                filenameLabel.textContent = input.files?.[0]?.name || "No file selected.";
+            });
+        });
+
+        form.addEventListener("submit", () => {
+            if (!submitButton) {
+                return;
+            }
+
+            submitButton.textContent = submitButton.dataset.submitLabel;
         });
     });
 });

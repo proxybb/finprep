@@ -23,6 +23,15 @@ class TableBoundaryResult:
 
 
 TABLE_HEADER_FIRST_LABELS = {"year", "period", "date", "line item", "line_item"}
+ANNOTATION_COLUMN_LABELS = {
+    "notes",
+    "note",
+    "comments",
+    "comment",
+    "remarks",
+    "remark",
+    "extra blank col",
+}
 
 
 def _text_value(value: Any) -> str:
@@ -73,34 +82,6 @@ def _metadata_from_text(value: Any) -> tuple[str, str] | None:
     return None
 
 
-def extract_leading_metadata(df: pd.DataFrame) -> dict[str, str]:
-    """Extract simple leading metadata without changing the DataFrame."""
-    metadata: dict[str, str] = {}
-
-    if len(df.columns) > 0:
-        header_metadata = _metadata_from_text(df.columns[0])
-        if header_metadata:
-            key, value = header_metadata
-            metadata[key] = value
-
-    for _, row in df.iterrows():
-        values = list(row)
-        if not values:
-            continue
-
-        first_value = values[0]
-        row_metadata = _metadata_from_text(first_value)
-        rest_is_blank = all(_is_blank(value) for value in values[1:])
-        if row_metadata and rest_is_blank:
-            key, value = row_metadata
-            metadata[key] = value
-            continue
-
-        break
-
-    return metadata
-
-
 def _count_historical_years(values: list[Any]) -> int:
     return sum(1 for value in values if _is_historical_year_label(value))
 
@@ -128,10 +109,43 @@ def _row_is_leading_metadata(values: list[Any]) -> bool:
         return False
 
     row_metadata = _metadata_from_text(values[0])
-    if not row_metadata:
-        return False
+    return bool(row_metadata)
 
-    return all(_is_blank(value) for value in values[1:])
+
+def _drop_annotation_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
+    keep_columns = [
+        _text_value(column).lower() not in ANNOTATION_COLUMN_LABELS
+        for column in df.columns
+    ]
+    if all(keep_columns):
+        return df.copy(), False
+
+    kept_positions = [
+        position for position, keep_column in enumerate(keep_columns) if keep_column
+    ]
+    return df.iloc[:, kept_positions].copy(), True
+
+
+def _drop_blank_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
+    keep_columns = []
+    for column_position, column in enumerate(df.columns):
+        column_is_blank = _is_blank(column)
+        values_are_blank = all(_is_blank(value) for value in df.iloc[:, column_position])
+        keep_columns.append(not (column_is_blank and values_are_blank))
+
+    if all(keep_columns):
+        return df.copy(), False
+
+    kept_positions = [
+        position for position, keep_column in enumerate(keep_columns) if keep_column
+    ]
+    return df.iloc[:, kept_positions].copy(), True
+
+
+def _drop_non_table_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
+    without_annotations, annotations_removed = _drop_annotation_columns(df)
+    without_blanks, blanks_removed = _drop_blank_columns(without_annotations)
+    return without_blanks, annotations_removed or blanks_removed
 
 
 def _promote_row_to_header(df: pd.DataFrame, row_position: int) -> pd.DataFrame:
@@ -146,9 +160,11 @@ def _promote_row_to_header(df: pd.DataFrame, row_position: int) -> pd.DataFrame:
 
 def normalize_table_boundary(df: pd.DataFrame) -> TableBoundaryResult:
     """Remove leading metadata and promote a clear table header when present."""
-    metadata = extract_leading_metadata(df)
-    working = df.copy()
+    metadata: dict[str, str] = {}
+    working, annotation_columns_removed = _drop_non_table_columns(df)
     action = "no_change"
+    if annotation_columns_removed:
+        action = "annotation_columns_removed"
 
     if len(working.columns) > 0 and _metadata_from_text(working.columns[0]):
         working.columns = list(range(len(working.columns)))
@@ -158,16 +174,13 @@ def normalize_table_boundary(df: pd.DataFrame) -> TableBoundaryResult:
     for row_position, (_, row) in enumerate(working.iterrows()):
         values = list(row)
         if _row_is_leading_metadata(values):
-            row_metadata = _metadata_from_text(values[0])
-            if row_metadata:
-                key, value = row_metadata
-                metadata[key] = value
             leading_rows_to_drop = row_position + 1
             action = "metadata_rows_removed"
             continue
 
         if _row_looks_like_table_header(values):
             bounded = _promote_row_to_header(working, row_position)
+            bounded, _ = _drop_non_table_columns(bounded)
             return TableBoundaryResult(
                 dataframe=bounded,
                 metadata=metadata,

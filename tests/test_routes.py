@@ -29,18 +29,26 @@ def _xlsx_file() -> BytesIO:
 def test_existing_routes_return_200():
     client = _client()
 
-    for path in ["/", "/data", "/data/cleaned", "/companies", "/analysis"]:
+    for path in ["/", "/data/upload", "/data/cleaned", "/companies", "/analysis"]:
         response = client.get(path)
         assert response.status_code == 200
 
 
-def test_data_renders_with_no_files():
+def test_data_redirects_to_upload_page():
     response = _client().get("/data")
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/data/upload")
+
+
+def test_data_upload_renders_with_no_files():
+    response = _client().get("/data/upload")
 
     assert response.status_code == 200
     html = response.get_data(as_text=True)
+    assert "Upload and Raw Preview" in html
     assert "No upload preview available." in html
-    assert "Preview uploaded data" in html
+    assert "Upload and preview" in html
 
 
 def test_uploading_csv_for_one_statement_shows_raw_preview():
@@ -50,7 +58,7 @@ def test_uploading_csv_for_one_statement_shows_raw_preview():
     client = _client()
 
     response = client.post(
-        "/data",
+        "/data/upload",
         data={"income_statement": (csv_file, "income.csv")},
         content_type="multipart/form-data",
     )
@@ -73,7 +81,7 @@ def test_uploading_csv_for_one_statement_shows_raw_preview():
 
 def test_uploading_xlsx_for_one_statement_shows_raw_preview():
     response = _client().post(
-        "/data",
+        "/data/upload",
         data={"balance_sheet": (_xlsx_file(), "balance.xlsx")},
         content_type="multipart/form-data",
     )
@@ -87,7 +95,7 @@ def test_uploading_xlsx_for_one_statement_shows_raw_preview():
 
 def test_unsupported_upload_type_shows_clean_error():
     response = _client().post(
-        "/data",
+        "/data/upload",
         data={"cash_flow_statement": (BytesIO(b"not supported"), "cash.txt")},
         content_type="multipart/form-data",
     )
@@ -107,7 +115,7 @@ def test_clean_data_uses_temporary_upload_and_runs_mechanical_cleaning():
     client = _client()
 
     upload_response = client.post(
-        "/data",
+        "/data/upload",
         data={"income_statement": (csv_file, "income.csv")},
         content_type="multipart/form-data",
     )
@@ -143,7 +151,7 @@ def test_clean_data_normalizes_sideways_upload_orientation():
     client = _client()
 
     upload_response = client.post(
-        "/data",
+        "/data/upload",
         data={"income_statement": (csv_file, "sideways.csv")},
         content_type="multipart/form-data",
     )
@@ -168,30 +176,39 @@ def test_clean_data_normalizes_sideways_upload_orientation():
     assert "sales" in html
     assert "operating income" in html
     assert "1200" in html
-    assert "650" in html
     assert "revenue" not in html
     assert "ebit" not in html
 
 
-def test_clean_data_removes_leading_metadata_and_uses_company_display_header():
+def test_clean_data_removes_leading_metadata_and_keeps_first_header_blank():
     csv_file = BytesIO(
-        b"Company: DemoComp,,,\n"
-        b"Title: Balance Sheet,,,\n"
-        b"Year,Sales,Operating Income\n"
-        b'As of 2021,"$1,200","$500"\n'
-        b'As of 2022,"$1,400","$650"\n'
+        b"Company: DemoCo,,,,,extra header row that should eventually be ignored\n"
+        b"Title: Balance Sheet,,,,,\n"
+        b"Statement: Income Statement,,,,,\n"
+        b"Currency: USD,,,,,\n"
+        b"Units: USD millions,,,,,\n"
+        b"Year,Sales,Operating Income,Notes,Extra Blank Col\n"
+        b'As of 2021,"$1,200","$500","management comment","ignore me"\n'
+        b'As of 2022,"$1,400",,"follow up","ignore me"\n'
     )
     client = _client()
 
     upload_response = client.post(
-        "/data",
+        "/data/upload",
         data={"income_statement": (csv_file, "metadata-sideways.csv")},
         content_type="multipart/form-data",
     )
     assert upload_response.status_code == 200
     raw_html = upload_response.get_data(as_text=True)
-    assert "Company: DemoComp" in raw_html
+    assert "Company: DemoCo" in raw_html
+    assert "extra header row that should eventually be ignored" in raw_html
     assert "Title: Balance Sheet" in raw_html
+    assert "Statement: Income Statement" in raw_html
+    assert "Currency: USD" in raw_html
+    assert "Units: USD millions" in raw_html
+    assert "Notes" in raw_html
+    assert "Extra Blank Col" in raw_html
+    assert "management comment" in raw_html
     assert "As of 2021" in raw_html
     assert "Operating Income" in raw_html
     assert "$1,200" in raw_html
@@ -204,18 +221,26 @@ def test_clean_data_removes_leading_metadata_and_uses_company_display_header():
     assert "2 rows x 3 columns" in html
     assert "Mechanical cleaning applied." in html
     assert "Orientation normalized." in html
-    assert "<th>DemoComp</th>" in html
-    assert "DemoComp" in html
+    assert "<th></th>" in html
+    assert "DemoCo" not in html
     assert "2021" in html
     assert "2022" in html
-    assert "company: democomp" not in html.lower()
+    assert "Company: DemoCo" not in html
+    assert "company: democo" not in html.lower()
+    assert "extra header row that should eventually be ignored" not in html
     assert "title: balance sheet" not in html.lower()
+    assert "statement: income statement" not in html.lower()
+    assert "currency: usd" not in html.lower()
+    assert "units: usd millions" not in html.lower()
+    assert "notes" not in html.lower()
+    assert "extra blank col" not in html.lower()
+    assert "management comment" not in html
     assert "as of 2021" not in html.lower()
     assert "line_item" not in html
+    assert "data-table__cell--missing" in html
     assert "sales" in html
     assert "operating income" in html
     assert "1200" in html
-    assert "650" in html
     assert "revenue" not in html
     assert "ebit" not in html
 
@@ -226,4 +251,4 @@ def test_cleaned_data_with_no_current_upload_shows_empty_state():
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "No uploaded files are available to clean." in html
-    assert "Back to Data" in html
+    assert "Back to upload/raw preview" in html

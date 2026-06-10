@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Data{% endblock %}
+{% block title %}Upload and Raw Preview{% endblock %}
 
 {% block content %}
 <section class="page-header">
     <p class="eyebrow">Data intake</p>
-    <h1>Data</h1>
+    <h1>Upload and Raw Preview</h1>
     <p class="page-header__copy">Upload financial statements and preview source data before cleaning.</p>
 </section>
 
-<form class="upload-form" method="post" enctype="multipart/form-data">
+<form class="upload-form" method="post" enctype="multipart/form-data" data-upload-form>
     <section class="upload-grid" aria-label="Financial statement uploads">
         {% for statement in statements %}
             {% set preview = previews[statement.key] %}
@@ -27,11 +27,13 @@
                 <label class="upload-card__dropzone" for="{{ statement.field_name }}">
                     <span class="upload-card__label">Choose CSV or Excel file</span>
                     <input id="{{ statement.field_name }}" name="{{ statement.field_name }}" type="file" accept=".csv,.xlsx,.xls">
-                    {% if preview.filename %}
-                        <small>{{ preview.filename }}</small>
-                    {% else %}
-                        <small>No file selected.</small>
-                    {% endif %}
+                    <small data-selected-filename>
+                        {% if preview.filename %}
+                            {{ preview.filename }}
+                        {% else %}
+                            No file selected.
+                        {% endif %}
+                    </small>
                     {% if preview.error %}
                         <strong class="upload-card__error">{{ preview.error }}</strong>
                     {% endif %}
@@ -41,7 +43,7 @@
     </section>
 
     <div class="action-row action-row--split">
-        <button class="secondary-button" type="submit">Preview uploaded data</button>
+        <button class="secondary-button" type="submit" data-submit-label="Uploading...">Upload and preview</button>
         <a class="primary-button" href="{{ url_for('web.cleaned_data') }}">Clean data</a>
     </div>
 </form>
@@ -93,9 +95,9 @@
                                     <tr>
                                         {% for value in row %}
                                             {% if loop.first %}
-                                                <th scope="row">{{ value }}</th>
+                                                <th scope="row">{{ value.value }}</th>
                                             {% else %}
-                                                <td>{{ value }}</td>
+                                                <td>{{ value.value }}</td>
                                             {% endif %}
                                         {% endfor %}
                                     </tr>

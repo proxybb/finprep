@@ -563,17 +563,14 @@ headers.
 
 ### Company and first-column display labels
 
-Company metadata is captured separately when practical. If the cleaned/oriented
-preview has an internal first column named `line_item` and company metadata is
-available, the user-facing first header displays the company name, for example:
+Company metadata is intentionally not stored or displayed during the cleaned
+preview stage. Company name will be collected or confirmed later during the
+Save Data stage.
 
-`DemoComp | 2021 | 2022`
-
-If no company metadata exists, the first user-facing header is rendered blank.
-This display override is applied in the cleaned/oriented preview layer so the
-user does not see internal handoff labels such as `line_item`. The internal
-DataFrame keeps its actual first-column name so later mapping and schema stages
-have a stable handoff.
+Leading metadata rows are removed only to protect the table boundary before
+orientation detection. The cleaned/oriented preview always renders the first
+visible column header as blank so the user does not see internal handoff labels
+such as `line_item` or source metadata such as `Company: DemoComp`.
 
 ### Period-label refinement
 
@@ -590,7 +587,7 @@ type or validate accounting content.
 
 ### Known limitations
 
-- Metadata extraction is conservative and focused on leading metadata only.
+- Metadata-row removal is conservative and focused on leading metadata only.
 - Unrecognized metadata formats may remain in uncertain tables.
 - Orientation detection is still heuristic and leaves uncertain tables
   unchanged.
@@ -618,9 +615,9 @@ orientation detection. The cleaned-preview pipeline now runs:
 
 `mechanical cleaning -> table-boundary cleanup -> orientation detection -> table preview`
 
-`cleaning/table_boundary.py` owns leading metadata extraction, leading
-metadata/title row removal, safe company/title/currency/units metadata capture,
-and clear header-row promotion when pandas parsed metadata as headers.
+`cleaning/table_boundary.py` owns leading metadata/title row removal and clear
+header-row promotion when pandas parsed metadata as headers. It does not store
+or preserve company metadata for preview display.
 
 `cleaning/orientation.py` now assumes it receives a bounded table. It only
 detects already-standard tables, detects sideways tables, transposes when clear,
@@ -635,10 +632,10 @@ test and avoids hiding metadata parsing inside orientation heuristics.
 
 ### Display behavior
 
-The cleaned preview still uses table-boundary metadata for the first visible
-header. If company metadata exists, the first header displays the company name.
-If company metadata is missing, the first header is blank. Internal handoff
-columns such as `line_item` remain internal and are not shown to the user.
+The cleaned preview always renders the first visible header as blank. Internal
+handoff columns such as `line_item` remain internal and are not shown to the
+user. Company name is intentionally not displayed or stored at this stage
+because it will be collected or confirmed later during Save Data.
 
 Raw preview remains raw and does not run mechanical cleaning, table-boundary
 cleanup, or orientation detection.
@@ -648,6 +645,7 @@ cleanup, or orientation detection.
 - Table-boundary cleanup is conservative and only removes leading metadata.
 - Metadata-like rows in the middle of a statement are preserved.
 - Unrecognized metadata formats may remain in uncertain tables.
+- Company metadata is not available to downstream stages yet.
 - Orientation detection is heuristic and leaves uncertain tables unchanged.
 - Forecast/estimate periods are preserved for later validation.
 - Duplicate period conflicts are not resolved.
@@ -659,5 +657,80 @@ cleanup, or orientation detection.
 
 ### Next suggested step
 
-Review the refactored Stage 1 and Stage 2 pipeline with representative uploads,
-then implement schema validation as a separate Stage 3.
+Review the cleaned preview with representative uploads, then add the Save Data
+stage where the user can enter or confirm company name before any persistence,
+schema validation, mapping, derivations, or identity checks are introduced.
+
+## 21. Data workflow route and preview refinement
+
+### What changed
+
+The Data workflow is now split into clearer routes:
+
+- `/data` redirects to `/data/upload`.
+- `/data/upload` handles file upload and raw preview only.
+- `/data/cleaned` shows cleaned, table-bounded, orientation-normalized preview
+  output only.
+
+The sidebar Data link points to `/data/upload`. The upload page is labeled as
+upload/raw preview, uses the action text `Upload and preview`, and includes a
+small selected-filename display next to each file input. This is client-side UI
+feedback only; there is no backend preload, async upload endpoint, or JavaScript
+file parsing.
+
+### Cleaned preview behavior
+
+Company name is still intentionally deferred to Save Data. It is not stored or
+displayed in the upload/raw preview workflow or cleaned preview workflow.
+
+Leading metadata rows such as `Company:`, `Title:`, `Statement:`, `Currency:`,
+and `Units:` are removed only to protect the table boundary before orientation.
+For leading rows, the first cell controls this cleanup even if other cells
+contain junk text. Metadata-like rows in the middle of a statement are
+preserved.
+
+Annotation/comment columns are removed from the cleaned working table before
+orientation when their headers are `notes`, `note`, `comments`, `comment`,
+`remarks`, `remark`, or `extra blank col`. Raw preview still shows those columns
+exactly as uploaded. This is not semantic label mapping. Later schema
+validation or issue reporting may surface comments and inconsistencies
+separately.
+
+Blank or missing cells in cleaned preview are visually highlighted with a
+restrained warning style. This is display-only. Missing values are not filled,
+calculated, or converted into formal validation issues yet.
+
+The cleaned preview first visible column header remains intentionally blank so
+internal handoff labels such as `line_item` are not shown.
+
+### Future async preload idea
+
+A future version may preload files before final upload:
+
+- user selects a file
+- frontend sends it to a temporary preview endpoint
+- backend ingests and stages the file
+- final action confirms the staged upload
+
+This is deferred because it adds async upload state, temporary lifecycle
+handling, and abandoned-file cleanup.
+
+### Known limitations
+
+- Save Data is not implemented.
+- SQL persistence is not implemented.
+- Label mapping is not implemented.
+- Schema validation is not implemented.
+- Derivations are not implemented.
+- Identity checks are not implemented.
+- Red flags, charts, valuation, summaries, AI, and metrics are not implemented.
+- Annotation/comment content is dropped from the cleaned working table for now
+  rather than preserved as review issues.
+- Orientation detection remains heuristic and leaves uncertain tables unchanged.
+- Duplicate period conflicts are not resolved.
+
+### Next suggested step
+
+Review upload/raw preview and cleaned preview with representative files, then
+design the Save Data step where the user confirms company name before any
+persistence or validation workflow is introduced.
