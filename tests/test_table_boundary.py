@@ -1,0 +1,105 @@
+import pandas as pd
+
+from cleaning.table_boundary import normalize_table_boundary
+
+
+def test_leading_company_metadata_is_captured_and_removed():
+    df = pd.DataFrame(
+        {
+            "line_item": ["Company: DemoComp", "revenue", "operating income"],
+            "2021": [None, 1200, 500],
+            "2022": [None, 1400, 650],
+        }
+    )
+
+    result = normalize_table_boundary(df)
+
+    assert result.status == "bounded"
+    assert result.metadata == {"company": "DemoComp"}
+    assert result.dataframe.to_dict("records") == [
+        {"line_item": "revenue", "2021": 1200, "2022": 1400},
+        {"line_item": "operating income", "2021": 500, "2022": 650},
+    ]
+
+
+def test_leading_title_metadata_is_removed():
+    df = pd.DataFrame(
+        {
+            "line_item": ["Title: Balance Sheet", "cash", "total assets"],
+            "2021": [None, 100, 500],
+            "2022": [None, 120, 550],
+        }
+    )
+
+    result = normalize_table_boundary(df)
+
+    assert result.status == "bounded"
+    assert result.metadata == {"title": "Balance Sheet"}
+    assert result.dataframe.to_dict("records") == [
+        {"line_item": "cash", "2021": 100, "2022": 120},
+        {"line_item": "total assets", "2021": 500, "2022": 550},
+    ]
+
+
+def test_metadata_like_row_in_middle_is_preserved():
+    df = pd.DataFrame(
+        {
+            "line_item": [
+                "Company: DemoComp",
+                "revenue",
+                "Company: Segment A",
+                "operating income",
+            ],
+            "2021": [None, 1200, 300, 500],
+            "2022": [None, 1400, 350, 650],
+        }
+    )
+
+    result = normalize_table_boundary(df)
+
+    assert result.metadata == {"company": "DemoComp"}
+    assert result.dataframe.to_dict("records") == [
+        {"line_item": "revenue", "2021": 1200, "2022": 1400},
+        {"line_item": "Company: Segment A", "2021": 300, "2022": 350},
+        {"line_item": "operating income", "2021": 500, "2022": 650},
+    ]
+
+
+def test_header_row_is_promoted_when_metadata_was_parsed_as_headers():
+    df = pd.DataFrame(
+        [
+            ["Title: Balance Sheet", "", "", ""],
+            ["Year", "Sales", "Operating Income", ""],
+            ["2021", 1200, 500, ""],
+            ["2022", 1400, 650, ""],
+        ],
+        columns=["Company: DemoComp", "Unnamed: 1", "Unnamed: 2", "Unnamed: 3"],
+    )
+
+    result = normalize_table_boundary(df)
+
+    assert result.status == "bounded"
+    assert result.action == "header_row_promoted"
+    assert result.metadata == {"company": "DemoComp", "title": "Balance Sheet"}
+    assert list(result.dataframe.columns) == ["year", "sales", "operating income", ""]
+    assert result.dataframe.to_dict("records") == [
+        {"year": "2021", "sales": 1200, "operating income": 500, "": ""},
+        {"year": "2022", "sales": 1400, "operating income": 650, "": ""},
+    ]
+
+
+def test_uncertain_table_boundary_stays_unchanged_conservatively():
+    df = pd.DataFrame(
+        {
+            "metric": ["revenue", "cogs"],
+            "current": [100, 40],
+            "prior": [120, 50],
+        }
+    )
+
+    result = normalize_table_boundary(df)
+
+    assert result.status == "unchanged"
+    assert result.action == "no_change"
+    assert result.metadata == {}
+    assert result.dataframe.equals(df)

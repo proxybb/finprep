@@ -188,6 +188,19 @@ def normalize_period_label(value: Any) -> Any:
     if quarter_match:
         return f"Q{quarter_match.group(1)} {quarter_match.group(2)}"
 
+    as_of_year_match = re.fullmatch(r"as of\s+(\d{4})", text, flags=re.IGNORECASE)
+    if as_of_year_match:
+        return as_of_year_match.group(1)
+
+    month_pattern = "|".join(MONTH_NAMES)
+    as_of_month_day_year_match = re.fullmatch(
+        rf"as of\s+({month_pattern})\s+\d{{1,2}},?\s+(\d{{4}})",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if as_of_month_day_year_match:
+        return as_of_month_day_year_match.group(2)
+
     fiscal_year_match = re.fullmatch(r"FY\s*(\d{4})A?", text, flags=re.IGNORECASE)
     if fiscal_year_match:
         return fiscal_year_match.group(1)
@@ -196,7 +209,6 @@ def normalize_period_label(value: Any) -> Any:
     if actual_year_match:
         return actual_year_match.group(1)
 
-    month_pattern = "|".join(MONTH_NAMES)
     month_year_match = re.fullmatch(
         rf"({month_pattern})[-\s]+(\d{{4}})", text, flags=re.IGNORECASE
     )

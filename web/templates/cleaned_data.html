@@ -6,13 +6,13 @@
 <section class="page-header">
     <p class="eyebrow">Data preview</p>
     <h1>Cleaned Data Preview</h1>
-    <p class="page-header__copy">Mechanical cleaning output only. Orientation detection, schema validation, label mapping, derivations, and identity checks are not run yet.</p>
+    <p class="page-header__copy">Mechanical cleaning and orientation normalization output only. Schema validation, label mapping, derivations, and identity checks are not run yet.</p>
 </section>
 
 <section class="stage-summary" aria-label="Cleaning stage summary">
     {% set stages = [
         ("Mechanical cleaning", "Runs now"),
-        ("Orientation detection", "Not implemented"),
+        ("Orientation detection", "Runs now"),
         ("Schema validation", "Not implemented"),
         ("Label mapping", "Not implemented"),
         ("Derivations", "Not implemented"),
@@ -53,7 +53,7 @@
                 <article class="table-card table-card--embedded" data-expandable-card>
                     <div class="table-card__header">
                         <div>
-                            <h2>{{ statement.label }} mechanically cleaned preview</h2>
+                            <h2>{{ statement.label }} cleaned preview</h2>
                             {% if result.table %}
                                 <p>{{ result.filename }} - {{ result.table.row_count }} rows x {{ result.table.column_count }} columns{% if result.table.is_truncated %} - first {{ result.table.preview_row_count }} shown{% endif %}</p>
                             {% elif result.error %}
@@ -68,6 +68,9 @@
                     {% if result.table %}
                         <div class="cleaning-status" role="status">
                             <span>Mechanical cleaning applied.</span>
+                            {% if result.orientation %}
+                                <span>{{ result.orientation.message }}</span>
+                            {% endif %}
                         </div>
 
                         <div class="table-wrap table-wrap--compact">

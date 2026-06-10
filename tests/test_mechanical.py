@@ -122,6 +122,10 @@ def test_header_unit_noise_is_removed_mechanically():
 def test_period_labels_normalize_obvious_annual_periods_and_preserve_quarters():
     assert normalize_period_label("FY2023") == "2023"
     assert normalize_period_label("FY 2023") == "2023"
+    assert normalize_period_label("as of 2021") == "2021"
+    assert normalize_period_label("As of 2021") == "2021"
+    assert normalize_period_label("as of Dec 31, 2021") == "2021"
+    assert normalize_period_label("As of December 31, 2021") == "2021"
     assert normalize_period_label("2021A") == "2021"
     assert normalize_period_label("2022A") == "2022"
     assert normalize_period_label("FY2021A") == "2021"

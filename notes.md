@@ -475,3 +475,189 @@ Unknown uppercase tokens around numbers are now preserved. For example,
 Add the next pipeline stage only after the mechanical-cleaning contract is
 accepted, with duplicate-period conflict handling, label mapping, validation,
 and derivations remaining outside the mechanical layer.
+
+## 18. Stage 2 orientation detection update
+
+### What orientation detection does
+
+Stage 2 orientation detection now runs after mechanical cleaning and before the
+cleaned preview is rendered. Its target analyst format is:
+
+`line_item | 2021 | 2022 | 2023`
+
+This stage changes table shape only. It puts historical year periods across the
+top and statement item labels down the left side when the table orientation is
+clear. It does not understand accounting meaning and does not map labels.
+
+### Why it is separate from mechanical cleaning
+
+Mechanical cleaning remains responsible for structural cleanup such as blank
+normalization, numeric parsing, header cleanup, period-label cleanup, and exact
+duplicate full-row removal. Orientation detection is a separate Stage 2 pass
+because transposing a table changes its shape and should be auditable as its own
+pipeline decision.
+
+### Detection rules
+
+- Already standard: two or more simple historical year labels appear in column
+  headers, and the first column mostly contains non-year text labels. The table
+  is left unchanged.
+- Transposed or sideways: the first column contains two or more simple
+  historical year labels, and the other column headers look like statement item
+  labels. The table is transposed to analyst-style orientation.
+- Uncertain: if there are not enough historical year labels in either place, no
+  transpose is attempted and the table is left unchanged.
+
+Forecast and estimate periods such as `2024E` and `2025F` are preserved but do
+not drive confident orientation decisions yet.
+
+### Cleaned preview behavior
+
+The cleaned preview now shows the result of mechanical cleaning followed by
+orientation detection. It displays neutral status messages only:
+
+- `Mechanical cleaning applied.`
+- `Orientation normalized.` when a table is transposed.
+- `Orientation already standard.` when no transpose is needed.
+- `Orientation uncertain; table left unchanged.` when the heuristic does not
+  have enough evidence.
+
+Raw preview remains raw and is not affected by mechanical cleaning or
+orientation detection.
+
+### Known limitations
+
+- Orientation detection is heuristic and conservative.
+- Uncertain tables are left unchanged.
+- Forecast/estimate periods are preserved for later validation.
+- Duplicate period conflicts are not resolved.
+- Label mapping is not implemented.
+- Schema validation is not implemented.
+- Derivations are not implemented.
+- Identity checks are not implemented.
+- SQL persistence is not implemented.
+- Metrics, charts, summaries, red flags, valuation, and AI are not implemented.
+
+### Next suggested step
+
+Implement schema validation as the next separate pipeline stage, while keeping
+label mapping, derivations, identity checks, duplicate-period conflict
+resolution, and persistence out of orientation detection.
+
+## 19. Stage 2 orientation boundary refinement
+
+### What changed
+
+Orientation detection now performs a conservative leading table-boundary cleanup
+before deciding whether to transpose. Leading metadata/title rows such as
+`Company: DemoComp`, `Statement: Income Statement`, `Currency: USD`,
+`Units: USD millions`, and `Prepared by ...` are removed only when they appear
+before the actual table begins. Matching rows in the middle of a statement are
+left unchanged.
+
+When a metadata row caused pandas to treat the metadata as column headers,
+orientation detection can promote a clear leading table-header row, such as
+`Year | Sales | Operating Income`, before applying orientation rules. Promoted
+headers receive the same mechanical header cleanup used by normal uploaded
+headers.
+
+### Company and first-column display labels
+
+Company metadata is captured separately when practical. If the cleaned/oriented
+preview has an internal first column named `line_item` and company metadata is
+available, the user-facing first header displays the company name, for example:
+
+`DemoComp | 2021 | 2022`
+
+If no company metadata exists, the first user-facing header is rendered blank.
+This display override is applied in the cleaned/oriented preview layer so the
+user does not see internal handoff labels such as `line_item`. The internal
+DataFrame keeps its actual first-column name so later mapping and schema stages
+have a stable handoff.
+
+### Period-label refinement
+
+Mechanical period normalization now recognizes common balance-sheet style
+labels:
+
+- `as of 2021` becomes `2021`
+- `As of 2021` becomes `2021`
+- `as of Dec 31, 2021` becomes `2021`
+- `As of December 31, 2021` becomes `2021`
+
+This remains mechanical period-label cleanup only. It does not decide statement
+type or validate accounting content.
+
+### Known limitations
+
+- Metadata extraction is conservative and focused on leading metadata only.
+- Unrecognized metadata formats may remain in uncertain tables.
+- Orientation detection is still heuristic and leaves uncertain tables
+  unchanged.
+- Forecast/estimate periods are preserved for later validation.
+- Duplicate period conflicts are not resolved.
+- Label mapping is not implemented.
+- Schema validation is not implemented.
+- Derivations are not implemented.
+- Identity checks are not implemented.
+- SQL persistence is not implemented.
+- Metrics, charts, summaries, red flags, valuation, and AI are not implemented.
+
+### Next suggested step
+
+Review the Stage 1 and Stage 2 handoff with representative uploads, then add
+schema validation as a separate Stage 3 without mixing it into mechanical
+cleaning or orientation detection.
+
+## 20. Table-boundary cleanup split from orientation
+
+### What changed
+
+The Stage 2 spike was refactored so table-boundary cleanup is separate from
+orientation detection. The cleaned-preview pipeline now runs:
+
+`mechanical cleaning -> table-boundary cleanup -> orientation detection -> table preview`
+
+`cleaning/table_boundary.py` owns leading metadata extraction, leading
+metadata/title row removal, safe company/title/currency/units metadata capture,
+and clear header-row promotion when pandas parsed metadata as headers.
+
+`cleaning/orientation.py` now assumes it receives a bounded table. It only
+detects already-standard tables, detects sideways tables, transposes when clear,
+and leaves uncertain tables unchanged.
+
+### Why this separation exists
+
+Metadata and table-boundary cleanup answer where the real table starts.
+Orientation detection answers whether periods are already across the top or need
+to be transposed. Keeping these decisions separate makes each stage easier to
+test and avoids hiding metadata parsing inside orientation heuristics.
+
+### Display behavior
+
+The cleaned preview still uses table-boundary metadata for the first visible
+header. If company metadata exists, the first header displays the company name.
+If company metadata is missing, the first header is blank. Internal handoff
+columns such as `line_item` remain internal and are not shown to the user.
+
+Raw preview remains raw and does not run mechanical cleaning, table-boundary
+cleanup, or orientation detection.
+
+### Known limitations
+
+- Table-boundary cleanup is conservative and only removes leading metadata.
+- Metadata-like rows in the middle of a statement are preserved.
+- Unrecognized metadata formats may remain in uncertain tables.
+- Orientation detection is heuristic and leaves uncertain tables unchanged.
+- Forecast/estimate periods are preserved for later validation.
+- Duplicate period conflicts are not resolved.
+- Label mapping is not implemented.
+- Schema validation is not implemented.
+- Derivations are not implemented.
+- Identity checks are not implemented.
+- SQL persistence is not implemented.
+
+### Next suggested step
+
+Review the refactored Stage 1 and Stage 2 pipeline with representative uploads,
+then implement schema validation as a separate Stage 3.

@@ -121,14 +121,101 @@ def test_clean_data_uses_temporary_upload_and_runs_mechanical_cleaning():
     assert "income.csv" in html
     assert "1 rows x 2 columns" in html
     assert "Mechanical cleaning applied." in html
+    assert "Orientation uncertain; table left unchanged." in html
     assert "Rows dropped" not in html
     assert "Columns dropped" not in html
     assert "Headers normalized" not in html
     assert "Numeric values converted" not in html
-    assert "sales" in html
+    assert "<th></th>" in html
     assert "operating income" in html
     assert "1200" in html
     assert "-500" in html
+    assert "revenue" not in html
+    assert "ebit" not in html
+
+
+def test_clean_data_normalizes_sideways_upload_orientation():
+    csv_file = BytesIO(
+        b" Year , Sales , Operating Income \n"
+        b'2021,"$1,200","$500"\n'
+        b'2022,"$1,400","$650"\n'
+    )
+    client = _client()
+
+    upload_response = client.post(
+        "/data",
+        data={"income_statement": (csv_file, "sideways.csv")},
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+    raw_html = upload_response.get_data(as_text=True)
+    assert "$1,200" in raw_html
+    assert "Operating Income" in raw_html
+    assert "operating income" not in raw_html
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "sideways.csv" in html
+    assert "2 rows x 3 columns" in html
+    assert "Mechanical cleaning applied." in html
+    assert "Orientation normalized." in html
+    assert "<th></th>" in html
+    assert "line_item" not in html
+    assert "2021" in html
+    assert "2022" in html
+    assert "sales" in html
+    assert "operating income" in html
+    assert "1200" in html
+    assert "650" in html
+    assert "revenue" not in html
+    assert "ebit" not in html
+
+
+def test_clean_data_removes_leading_metadata_and_uses_company_display_header():
+    csv_file = BytesIO(
+        b"Company: DemoComp,,,\n"
+        b"Title: Balance Sheet,,,\n"
+        b"Year,Sales,Operating Income\n"
+        b'As of 2021,"$1,200","$500"\n'
+        b'As of 2022,"$1,400","$650"\n'
+    )
+    client = _client()
+
+    upload_response = client.post(
+        "/data",
+        data={"income_statement": (csv_file, "metadata-sideways.csv")},
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+    raw_html = upload_response.get_data(as_text=True)
+    assert "Company: DemoComp" in raw_html
+    assert "Title: Balance Sheet" in raw_html
+    assert "As of 2021" in raw_html
+    assert "Operating Income" in raw_html
+    assert "$1,200" in raw_html
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "metadata-sideways.csv" in html
+    assert "2 rows x 3 columns" in html
+    assert "Mechanical cleaning applied." in html
+    assert "Orientation normalized." in html
+    assert "<th>DemoComp</th>" in html
+    assert "DemoComp" in html
+    assert "2021" in html
+    assert "2022" in html
+    assert "company: democomp" not in html.lower()
+    assert "title: balance sheet" not in html.lower()
+    assert "as of 2021" not in html.lower()
+    assert "line_item" not in html
+    assert "sales" in html
+    assert "operating income" in html
+    assert "1200" in html
+    assert "650" in html
     assert "revenue" not in html
     assert "ebit" not in html
 
