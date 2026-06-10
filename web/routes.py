@@ -1,17 +1,24 @@
 """Route definitions for the Flask application."""
 
+import json
 import math
+from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import pandas as pd
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, session
+from werkzeug.utils import secure_filename
 
 from cleaning.ingest import IngestionError, read_uploaded_file
+from cleaning.mechanical import run_mechanical_cleaning
 
 
 bp = Blueprint("web", __name__)
 
 PREVIEW_ROW_LIMIT = 50
+TEMP_UPLOAD_ROOT = Path("data/temp_uploads")
+UPLOAD_METADATA_FILENAME = "metadata.json"
 STATEMENTS = [
     {
         "key": "income",
@@ -35,6 +42,63 @@ STATEMENTS = [
         "tab_id": "tab-cash-flow",
     },
 ]
+
+
+def _upload_dir(upload_id: str) -> Path:
+    return TEMP_UPLOAD_ROOT / upload_id
+
+
+def _metadata_path(upload_id: str) -> Path:
+    return _upload_dir(upload_id) / UPLOAD_METADATA_FILENAME
+
+
+def _load_upload_metadata(upload_id: str | None) -> dict:
+    if not upload_id:
+        return {}
+
+    path = _metadata_path(upload_id)
+    if not path.exists():
+        return {}
+
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _save_upload_metadata(upload_id: str, metadata: dict) -> None:
+    upload_dir = _upload_dir(upload_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    _metadata_path(upload_id).write_text(
+        json.dumps(metadata, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+
+def _save_uploaded_file(upload_id: str, statement: dict, uploaded_file) -> dict:
+    upload_dir = _upload_dir(upload_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_filename = secure_filename(uploaded_file.filename or "upload")
+    if not safe_filename:
+        safe_filename = "upload"
+
+    stored_filename = f"{statement['field_name']}-{safe_filename}"
+    destination = upload_dir / stored_filename
+    uploaded_file.seek(0)
+    uploaded_file.save(destination)
+
+    return {
+        "filename": uploaded_file.filename,
+        "stored_filename": stored_filename,
+        "field_name": statement["field_name"],
+    }
+
+
+def _read_saved_statement(upload_id: str, metadata_entry: dict) -> pd.DataFrame:
+    stored_path = _upload_dir(upload_id) / metadata_entry["stored_filename"]
+    with stored_path.open("rb") as file:
+        return read_uploaded_file(file, filename=metadata_entry["filename"])
 
 
 def _render_cell_value(value: Any) -> str:
@@ -77,6 +141,8 @@ def _empty_statement_previews() -> dict:
 
 def _build_upload_previews(uploaded_files) -> dict:
     previews = _empty_statement_previews()
+    metadata = {"statements": {}}
+    upload_id = uuid4().hex
 
     for statement in STATEMENTS:
         field_name = statement["field_name"]
@@ -87,6 +153,11 @@ def _build_upload_previews(uploaded_files) -> dict:
 
         try:
             df = read_uploaded_file(uploaded_file, filename=uploaded_file.filename)
+            metadata["statements"][statement["key"]] = _save_uploaded_file(
+                upload_id,
+                statement,
+                uploaded_file,
+            )
             previews[statement["key"]] = {
                 "filename": uploaded_file.filename,
                 "error": None,
@@ -99,7 +170,69 @@ def _build_upload_previews(uploaded_files) -> dict:
                 "table": None,
             }
 
+    if metadata["statements"]:
+        _save_upload_metadata(upload_id, metadata)
+        session["current_upload_id"] = upload_id
+
     return previews
+
+
+def _build_saved_upload_previews(upload_id: str | None) -> dict:
+    previews = _empty_statement_previews()
+    metadata = _load_upload_metadata(upload_id)
+    saved_statements = metadata.get("statements", {})
+
+    for statement in STATEMENTS:
+        metadata_entry = saved_statements.get(statement["key"])
+        if not metadata_entry:
+            continue
+
+        try:
+            df = _read_saved_statement(upload_id, metadata_entry)
+            previews[statement["key"]] = {
+                "filename": metadata_entry["filename"],
+                "error": None,
+                "table": build_table_preview(df),
+            }
+        except (IngestionError, OSError, KeyError) as exc:
+            previews[statement["key"]] = {
+                "filename": metadata_entry.get("filename", "uploaded file"),
+                "error": str(exc),
+                "table": None,
+            }
+
+    return previews
+
+
+def _build_cleaned_results(upload_id: str | None) -> dict:
+    results = _empty_statement_previews()
+    metadata = _load_upload_metadata(upload_id)
+    saved_statements = metadata.get("statements", {})
+
+    for statement in STATEMENTS:
+        metadata_entry = saved_statements.get(statement["key"])
+        if not metadata_entry:
+            continue
+
+        try:
+            raw_df = _read_saved_statement(upload_id, metadata_entry)
+            cleaning_result = run_mechanical_cleaning(raw_df)
+            cleaned_df = cleaning_result["cleaned_df"]
+            results[statement["key"]] = {
+                "filename": metadata_entry["filename"],
+                "error": None,
+                "table": build_table_preview(cleaned_df),
+                "audit_log": cleaning_result["audit_log"],
+            }
+        except (IngestionError, OSError, KeyError, ValueError) as exc:
+            results[statement["key"]] = {
+                "filename": metadata_entry.get("filename", "uploaded file"),
+                "error": str(exc),
+                "table": None,
+                "audit_log": None,
+            }
+
+    return results
 
 
 @bp.route("/")
@@ -111,9 +244,10 @@ def dashboard():
 @bp.route("/data", methods=["GET", "POST"])
 def data():
     """Render the data intake page and raw upload previews."""
-    previews = _empty_statement_previews()
     if request.method == "POST":
         previews = _build_upload_previews(request.files)
+    else:
+        previews = _build_saved_upload_previews(session.get("current_upload_id"))
 
     return render_template(
         "data.html",
@@ -125,8 +259,18 @@ def data():
 
 @bp.route("/data/cleaned")
 def cleaned_data():
-    """Render the cleaned data preview placeholder."""
-    return render_template("cleaned_data.html", active_page="data")
+    """Render mechanically cleaned previews for the current uploaded files."""
+    upload_id = session.get("current_upload_id")
+    has_upload = bool(_load_upload_metadata(upload_id))
+    results = _build_cleaned_results(upload_id) if has_upload else _empty_statement_previews()
+
+    return render_template(
+        "cleaned_data.html",
+        active_page="data",
+        statements=STATEMENTS,
+        results=results,
+        has_upload=has_upload,
+    )
 
 
 @bp.route("/companies")

@@ -50,7 +50,7 @@
     <div class="preview-card__header">
         <div>
             <h2>Raw Preview</h2>
-            <p>First 50 rows shown exactly as ingested.</p>
+            <p>First 50 rows shown exactly as ingested. Values and labels are not cleaned or mapped here.</p>
         </div>
     </div>
 
@@ -79,8 +79,8 @@
                 </div>
 
                 {% if preview.table %}
-                    <div class="table-wrap">
-                        <table class="data-table">
+                    <div class="table-wrap table-wrap--raw">
+                        <table class="data-table data-table--raw">
                             <thead>
                                 <tr>
                                     {% for header in preview.table.headers %}

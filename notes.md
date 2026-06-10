@@ -326,3 +326,115 @@ Examples covered by route tests:
 ### Next suggested step
 
 Connect the `Clean data` action to mechanical cleaning for the uploaded in-memory previews, while still keeping orientation detection, schema validation, label mapping, derivations, identity checks, deduplication, persistence, and analysis features out of that step.
+
+## 15. Temporary upload storage and mechanical cleaning button update
+
+### What changed
+
+The Data workflow now keeps uploaded files in temporary server-side working storage and uses those files when the user clicks `Clean data`. The cleaned preview page now runs Stage 1 mechanical cleaning instead of showing placeholder standardized output.
+
+### Files touched
+
+- `.gitignore`
+- `web/__init__.py`
+- `web/routes.py`
+- `web/templates/data.html`
+- `web/templates/cleaned_data.html`
+- `web/static/css/main.css`
+- `tests/test_routes.py`
+- `notes.md`
+
+### Preview display change
+
+The raw preview keeps the existing Income Statement, Balance Sheet, and Cash Flow Statement tabs, but the table styling was adjusted for easier vertical scanning. Raw preview tables no longer stretch sparse uploads across the full page, row spacing is tighter, alternating rows improve scanning, and horizontal scrolling remains available for genuinely wide files. This is a display-only change and does not alter the underlying raw DataFrame.
+
+### Temporary upload and session design
+
+Uploaded files that pass ingestion are saved under `data/temp_uploads/<upload_id>/` with secure filenames and a small server-side metadata file. Flask session stores only `current_upload_id`; it does not store pandas DataFrames or uploaded file contents. This temporary upload storage is working-session storage only and is not SQL persistence.
+
+### Clean data button behavior
+
+The `Clean data` button now uses `current_upload_id` to load the same temporary uploaded files on `/data/cleaned`. Each file is read again through `cleaning.ingest.read_uploaded_file`, then passed to `cleaning.mechanical.run_mechanical_cleaning`.
+
+### Mechanical-only boundary
+
+Only mechanical cleaning runs for now. The cleaned preview shows cleaned DataFrame previews, post-cleaning shape, and the mechanical audit summary, including dropped rows, dropped columns, normalized headers, missing values normalized, numeric values converted, and period labels normalized.
+
+### Raw preview boundary
+
+Raw preview remains raw. Uploaded labels and values are displayed as ingested: values such as `$1,200` remain `$1,200`, `Operating Income` remains `Operating Income`, `Sales` is not mapped to `revenue`, and `Operating Income` is not mapped to `ebit`.
+
+### Known limitations
+
+- Clean data currently runs only mechanical cleaning.
+- Orientation detection is not implemented yet.
+- Schema validation is not implemented yet.
+- Label mapping is not implemented yet.
+- Derivations are not implemented yet.
+- Identity checks are not implemented yet.
+- Temporary uploaded files are working-session files only.
+- No SQL persistence exists yet.
+
+### Next suggested step
+
+Add orientation detection as the next pipeline stage after mechanical cleaning, while keeping raw preview and temporary upload storage boundaries unchanged.
+
+## 16. Mechanical cleaning refinement update
+
+### What changed
+
+Mechanical cleaning was refined before committing. It now removes exact duplicate rows after basic mechanical normalization, normalizes historical actual period suffixes, preserves forecast and estimate suffixes for later validation, and keeps detailed mechanical audit data internal instead of showing it prominently on the cleaned preview page.
+
+### Files touched
+
+- `cleaning/audit.py`
+- `cleaning/mechanical.py`
+- `tests/test_mechanical.py`
+- `tests/test_routes.py`
+- `web/templates/cleaned_data.html`
+- `web/static/css/main.css`
+- `notes.md`
+
+### Duplicate-row mechanical cleaning rule
+
+Mechanical cleaning now drops exact full-row duplicates after basic normalization and keeps the first occurrence. This applies only when the whole row is identical. It does not drop rows just because they share the same year, and it does not drop, merge, or resolve duplicate period/year columns.
+
+### Actual-period suffix normalization rule
+
+Historical actual period suffixes are mechanically normalized:
+
+- `2021A` becomes `2021`
+- `2022A` becomes `2022`
+- `FY2021A` becomes `2021`
+- `FY 2021A` becomes `2021`
+
+### Estimate/forecast suffix preservation rule
+
+Forecast and estimate suffixes are preserved for later validation:
+
+- `2024E` remains `2024E`
+- `2025F` remains `2025F`
+
+These periods are not blocked yet because schema and period validation are later-stage responsibilities.
+
+### User-facing audit visibility decision
+
+The cleaned preview page no longer shows a detailed mechanical audit summary or header-change log. It shows only the neutral status `Mechanical cleaning applied.` Detailed audit/change logs remain available internally and will be surfaced later in the analyst review/user-decision flow.
+
+### Table display adjustment
+
+Raw and cleaned preview tables were adjusted to stay compact instead of stretching across the full card when there are few columns. The first column remains readable, columns use less empty spacing, horizontal scrolling remains available for genuinely wide files, and expand/fullscreen behavior still works without transposing the DataFrame.
+
+### Known limitations
+
+- Orientation detection is not implemented yet.
+- Schema validation is not implemented yet.
+- Forecast/estimate periods are preserved for later validation but not blocked yet.
+- Label mapping is not implemented yet.
+- Derivations are not implemented yet.
+- Identity checks are not implemented yet.
+- SQL persistence is not implemented yet.
+
+### Next suggested step
+
+Implement orientation detection as the next automated pipeline stage after mechanical cleaning, while continuing to leave duplicate period conflicts, unsupported forecast/estimate periods, label mapping, derivations, and identity checks to their later stages.

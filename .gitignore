@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
+data/temp_uploads/
 .venv/
 venv/
 .env

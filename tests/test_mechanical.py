@@ -2,6 +2,7 @@ import pandas as pd
 
 from cleaning.mechanical import (
     clean_numeric_value,
+    drop_exact_duplicate_rows,
     drop_blank_rows_and_columns,
     normalize_header_text,
     normalize_headers,
@@ -26,6 +27,23 @@ def test_drop_blank_rows_and_columns_drops_fully_blank_structures():
     assert cleaned.shape == (1, 2)
     assert list(cleaned.columns) == ["line_item", "2023"]
     assert cleaned.iloc[0].to_dict() == {"line_item": "Revenue", "2023": "1,200"}
+
+
+def test_drop_exact_duplicate_rows_keeps_first_occurrence_only():
+    df = pd.DataFrame(
+        [
+            {"line_item": "Revenue", "2023": 1200},
+            {"line_item": "Revenue", "2023": 1200},
+            {"line_item": "Revenue", "2023": 1300},
+        ]
+    )
+
+    cleaned = drop_exact_duplicate_rows(df)
+
+    assert cleaned.to_dict("records") == [
+        {"line_item": "Revenue", "2023": 1200},
+        {"line_item": "Revenue", "2023": 1300},
+    ]
 
 
 def test_normalize_string_value_strips_and_collapses_whitespace():
@@ -75,10 +93,51 @@ def test_headers_are_normalized_without_semantic_mapping():
 def test_period_labels_normalize_obvious_annual_periods_and_preserve_quarters():
     assert normalize_period_label("FY2023") == "2023"
     assert normalize_period_label("FY 2023") == "2023"
+    assert normalize_period_label("2021A") == "2021"
+    assert normalize_period_label("2022A") == "2022"
+    assert normalize_period_label("FY2021A") == "2021"
+    assert normalize_period_label("FY 2021A") == "2021"
+    assert normalize_period_label("2024E") == "2024E"
+    assert normalize_period_label("2025F") == "2025F"
     assert normalize_period_label("Dec-2022") == "2022"
     assert normalize_period_label("December 2022") == "2022"
     assert normalize_period_label("Q1 2023") == "Q1 2023"
     assert normalize_period_label("13/14/2022") == "13/14/2022"
+
+
+def test_run_mechanical_cleaning_drops_exact_duplicate_rows_only():
+    df = pd.DataFrame(
+        {
+            "Line Item": ["Sales", " Sales ", "Operating Income"],
+            "2023": ["$1,200", " $1,200 ", "$500"],
+        }
+    )
+
+    result = run_mechanical_cleaning(df)
+
+    cleaned_df = result["cleaned_df"]
+    assert cleaned_df.to_dict("records") == [
+        {"line item": "Sales", "2023": 1200},
+        {"line item": "Operating Income", "2023": 500},
+    ]
+    assert result["audit_log"]["duplicate_rows_dropped_count"] == 1
+
+
+def test_run_mechanical_cleaning_does_not_drop_or_merge_duplicate_period_columns():
+    df = pd.DataFrame(
+        [
+            ["Revenue", "$1,200", "$1,250"],
+            ["Operating Income", "$500", "$550"],
+        ],
+        columns=["Line Item", "2023", "2023"],
+    )
+
+    result = run_mechanical_cleaning(df)
+
+    cleaned_df = result["cleaned_df"]
+    assert list(cleaned_df.columns) == ["line item", "2023", "2023"]
+    assert cleaned_df.shape == (2, 3)
+    assert result["audit_log"]["columns_dropped_count"] == 0
 
 
 def test_run_mechanical_cleaning_returns_cleaned_df_and_audit_log():
@@ -104,6 +163,7 @@ def test_run_mechanical_cleaning_returns_cleaned_df_and_audit_log():
     audit_log = result["audit_log"]
     assert audit_log["rows_dropped_count"] == 2
     assert audit_log["columns_dropped_count"] == 1
+    assert audit_log["duplicate_rows_dropped_count"] == 0
     assert audit_log["headers_normalized"] == [
         {"original": " Line Item ", "normalized": "line item"},
         {"original": " Total Revenue ($M) ", "normalized": "total revenue"},

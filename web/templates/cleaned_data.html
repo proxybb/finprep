@@ -6,151 +6,107 @@
 <section class="page-header">
     <p class="eyebrow">Data preview</p>
     <h1>Cleaned Data Preview</h1>
-    <p class="page-header__copy">Review standardized outputs produced by the cleaning pipeline.</p>
+    <p class="page-header__copy">Mechanical cleaning output only. Orientation detection, schema validation, label mapping, derivations, and identity checks are not run yet.</p>
 </section>
 
 <section class="stage-summary" aria-label="Cleaning stage summary">
     {% set stages = [
-        "Mechanical cleaning",
-        "Orientation detection",
-        "Schema validation",
-        "Label mapping",
-        "Derivations",
-        "Identity checks"
+        ("Mechanical cleaning", "Runs now"),
+        ("Orientation detection", "Not implemented"),
+        ("Schema validation", "Not implemented"),
+        ("Label mapping", "Not implemented"),
+        ("Derivations", "Not implemented"),
+        ("Identity checks", "Not implemented")
     ] %}
-    {% for stage in stages %}
+    {% for stage, status in stages %}
     <article class="stage-summary__item">
         <span>{{ stage }}</span>
-        <strong>Placeholder</strong>
+        <strong>{{ status }}</strong>
     </article>
     {% endfor %}
 </section>
 
-<section class="table-stack" aria-label="Cleaned financial statement previews">
-    <article class="table-card" data-expandable-card>
-        <div class="table-card__header">
+{% if not has_upload %}
+    <section class="empty-state">
+        <strong>No uploaded files are available to clean.</strong>
+        <span>Upload one or more statements on the Data page before running mechanical cleaning.</span>
+        <a class="secondary-button empty-state__action" href="{{ url_for('web.data') }}">Back to Data</a>
+    </section>
+{% else %}
+    <section class="preview-card" data-tabs>
+        <div class="preview-card__header">
             <div>
-                <h2>Income Statement cleaned output</h2>
-                <p>Placeholder standardized output.</p>
+                <h2>Mechanical Cleaning Results</h2>
+                <p>Each tab shows the cleaned DataFrame produced from the temporary uploaded file.</p>
             </div>
-            <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
         </div>
-        <div class="table-wrap">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Standard field</th>
-                        <th>FY2021</th>
-                        <th>FY2022</th>
-                        <th>FY2023</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <th>revenue</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                    <tr>
-                        <th>cost_of_revenue</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                    <tr>
-                        <th>operating_income</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </article>
 
-    <article class="table-card" data-expandable-card>
-        <div class="table-card__header">
-            <div>
-                <h2>Balance Sheet cleaned output</h2>
-                <p>Placeholder standardized output.</p>
-            </div>
-            <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
+        <div class="tab-list" role="tablist" aria-label="Mechanically cleaned financial statement previews">
+            {% for statement in statements %}
+                <button class="tab-button {% if loop.first %}is-active{% endif %}" type="button" role="tab" id="cleaned-{{ statement.tab_id }}" aria-controls="cleaned-{{ statement.panel_id }}" aria-selected="{{ 'true' if loop.first else 'false' }}" data-tab-button="{{ statement.key }}">{{ statement.label }}</button>
+            {% endfor %}
         </div>
-        <div class="table-wrap">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Standard field</th>
-                        <th>FY2021</th>
-                        <th>FY2022</th>
-                        <th>FY2023</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <th>cash_and_equivalents</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                    <tr>
-                        <th>total_assets</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                    <tr>
-                        <th>total_liabilities</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </article>
 
-    <article class="table-card" data-expandable-card>
-        <div class="table-card__header">
-            <div>
-                <h2>Cash Flow Statement cleaned output</h2>
-                <p>Placeholder standardized output.</p>
+        {% for statement in statements %}
+            {% set result = results[statement.key] %}
+            <div class="tab-panel {% if loop.first %}is-active{% endif %}" id="cleaned-{{ statement.panel_id }}" role="tabpanel" aria-labelledby="cleaned-{{ statement.tab_id }}" data-tab-panel="{{ statement.key }}" {% if not loop.first %}hidden{% endif %}>
+                <article class="table-card table-card--embedded" data-expandable-card>
+                    <div class="table-card__header">
+                        <div>
+                            <h2>{{ statement.label }} mechanically cleaned preview</h2>
+                            {% if result.table %}
+                                <p>{{ result.filename }} - {{ result.table.row_count }} rows x {{ result.table.column_count }} columns{% if result.table.is_truncated %} - first {{ result.table.preview_row_count }} shown{% endif %}</p>
+                            {% elif result.error %}
+                                <p>{{ result.filename }} - cleaning unavailable</p>
+                            {% else %}
+                                <p>No file uploaded for this statement.</p>
+                            {% endif %}
+                        </div>
+                        <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
+                    </div>
+
+                    {% if result.table %}
+                        <div class="cleaning-status" role="status">
+                            <span>Mechanical cleaning applied.</span>
+                        </div>
+
+                        <div class="table-wrap table-wrap--compact">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        {% for header in result.table.headers %}
+                                            <th>{{ header }}</th>
+                                        {% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in result.table.rows %}
+                                        <tr>
+                                            {% for value in row %}
+                                                {% if loop.first %}
+                                                    <th scope="row">{{ value }}</th>
+                                                {% else %}
+                                                    <td>{{ value }}</td>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% elif result.error %}
+                        <div class="empty-state empty-state--error">
+                            <strong>{{ result.error }}</strong>
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <strong>No uploaded file for {{ statement.label }}.</strong>
+                            <span>Upload this statement on the Data page to include it in mechanical cleaning.</span>
+                        </div>
+                    {% endif %}
+                </article>
             </div>
-            <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
-        </div>
-        <div class="table-wrap">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Standard field</th>
-                        <th>FY2021</th>
-                        <th>FY2022</th>
-                        <th>FY2023</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <th>cash_from_operations</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                    <tr>
-                        <th>capital_expenditures</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                    <tr>
-                        <th>free_cash_flow</th>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                        <td>Placeholder</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </article>
-</section>
+        {% endfor %}
+    </section>
+{% endif %}
 {% endblock %}

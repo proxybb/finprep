@@ -98,6 +98,11 @@ def drop_blank_rows_and_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df.loc[non_blank_rows, non_blank_columns].copy()
 
 
+def drop_exact_duplicate_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop fully identical duplicate rows after prior mechanical normalization."""
+    return df.drop_duplicates(keep="first").copy()
+
+
 def clean_numeric_value(value: Any) -> Any:
     """Convert obvious numeric-looking strings into numbers."""
     if isinstance(value, Number) and not isinstance(value, bool):
@@ -174,9 +179,13 @@ def normalize_period_label(value: Any) -> Any:
     if quarter_match:
         return f"Q{quarter_match.group(1)} {quarter_match.group(2)}"
 
-    fiscal_year_match = re.fullmatch(r"FY\s*(\d{4})", text, flags=re.IGNORECASE)
+    fiscal_year_match = re.fullmatch(r"FY\s*(\d{4})A?", text, flags=re.IGNORECASE)
     if fiscal_year_match:
         return fiscal_year_match.group(1)
+
+    actual_year_match = re.fullmatch(r"(\d{4})A", text, flags=re.IGNORECASE)
+    if actual_year_match:
+        return actual_year_match.group(1)
 
     month_pattern = "|".join(MONTH_NAMES)
     month_year_match = re.fullmatch(
@@ -226,5 +235,10 @@ def run_mechanical_cleaning(df: pd.DataFrame) -> dict[str, Any]:
     cleaned_df = cleaned_df.apply(
         lambda column: column.map(lambda value: _normalize_cell_value(value, audit_log))
     )
+
+    deduped_df = drop_exact_duplicate_rows(cleaned_df)
+    audit_log.duplicate_rows_dropped_count = len(cleaned_df.index) - len(deduped_df.index)
+    audit_log.rows_dropped_count += audit_log.duplicate_rows_dropped_count
+    cleaned_df = deduped_df
 
     return {"cleaned_df": cleaned_df, "audit_log": audit_log.as_dict()}
