@@ -813,3 +813,55 @@ preserved for later validation. Duplicate period columns remain preserved.
 
 Implement Stage 4 label mapping as a separate module and pipeline stage, keeping
 period normalization before table-boundary cleanup and orientation detection.
+
+## 24. Stage 4A-1 Balance Sheet Assets mapping backend
+
+### What changed
+
+Backend-only deterministic label mapping was added for Balance Sheet Assets.
+The mapper receives a cleaned/oriented DataFrame, treats the first column as the
+statement label, preserves row order and values, and appends mapping metadata
+columns for later analysis.
+
+### Files touched
+
+- `cleaning/mapping.py`
+- `tests/test_mapping.py`
+- `notes.md`
+
+### Why it changed
+
+This starts Stage 4 label mapping without changing upload, raw preview,
+mechanical cleaning, table-boundary cleanup, orientation, routing, UI,
+validation, derivations, identity checks, rollups, or persistence.
+
+### Current behavior
+
+- `map_statement_rows(df, statement_type)` supports only `balance_sheet`.
+- Unsupported statement types raise a clean `ValueError`.
+- Balance Sheet Asset aliases map to internal canonicals such as
+  `cash_and_equivalents`, `accounts_receivable`, `receivables_total`,
+  `inventory`, `current_assets`, `pp_and_e`, and `total_assets`.
+- Special labels are tagged as `review_only`, `deferred`, or `unmapped` instead
+  of being forced into narrow canonicals.
+- Each output row receives mapping metadata and an audit record with the same
+  metadata.
+- Input DataFrames are copied and not mutated.
+- Period columns and numeric values remain unchanged.
+- Duplicate canonical mappings remain as separate rows.
+
+### Known limitations
+
+- Liabilities and equity mapping are not implemented.
+- Income statement and cash flow mapping are not implemented.
+- Mapping is not wired into Flask routes or the cleaned preview pipeline.
+- Schema validation, derivations, identity checks, rollups, and SQL persistence
+  are not implemented.
+- Matching is exact after small deterministic label normalization; there is no
+  fuzzy matching.
+
+### Next suggested step
+
+Review the Balance Sheet Assets mapping rules against representative uploads,
+then implement the next scoped mapping slice separately without wiring mapping
+into routes until the backend contract is accepted.

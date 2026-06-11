@@ -1,0 +1,172 @@
+import pandas as pd
+import pytest
+
+from cleaning.mapping import MAPPING_METADATA_COLUMNS, map_statement_rows
+
+
+def _map_labels(labels):
+    df = pd.DataFrame({"line_item": labels, "2022": [100] * len(labels)})
+    mapped_df, audit_records = map_statement_rows(df, "balance_sheet")
+    return mapped_df, audit_records
+
+
+def test_auto_maps_core_balance_sheet_asset_labels():
+    mapped_df, _ = _map_labels(
+        [
+            "cash and cash equivalents",
+            "trade receivables",
+            "inventories",
+            "total current assets",
+            "property plant and equipment net",
+            "total assets",
+        ]
+    )
+
+    assert mapped_df["mapping_status"].tolist() == ["auto_mapped"] * 6
+    assert mapped_df["canonical_label"].tolist() == [
+        "cash_and_equivalents",
+        "accounts_receivable",
+        "inventory",
+        "current_assets",
+        "pp_and_e",
+        "total_assets",
+    ]
+    assert mapped_df["display_label"].tolist() == [
+        "Cash and Cash Equivalents",
+        "Accounts Receivable",
+        "Inventory",
+        "Current Assets",
+        "PP&E",
+        "Total Assets",
+    ]
+
+
+def test_preserves_numeric_values_and_signs():
+    df = pd.DataFrame(
+        {
+            "line_item": ["cash and cash equivalents", "trade receivables"],
+            "2022": [1200, -50],
+            "2023": [1400, -75],
+        }
+    )
+
+    mapped_df, _ = map_statement_rows(df, "balance_sheet")
+
+    assert mapped_df["2022"].tolist() == [1200, -50]
+    assert mapped_df["2023"].tolist() == [1400, -75]
+
+
+def test_does_not_mutate_input_dataframe():
+    df = pd.DataFrame(
+        {
+            "line_item": ["cash and cash equivalents", "total assets"],
+            "2022": [100, 200],
+        }
+    )
+    original = df.copy(deep=True)
+
+    map_statement_rows(df, "balance_sheet")
+
+    pd.testing.assert_frame_equal(df, original)
+
+
+def test_does_not_drop_rows():
+    df = pd.DataFrame(
+        {
+            "line_item": ["cash and cash equivalents", "not a mapped label", "total assets"],
+            "2022": [100, 150, 200],
+        }
+    )
+
+    mapped_df, _ = map_statement_rows(df, "balance_sheet")
+
+    assert len(mapped_df.index) == len(df.index)
+    assert mapped_df["line_item"].tolist() == df["line_item"].tolist()
+
+
+def test_special_labels_are_not_forced_into_narrow_canonicals():
+    mapped_df, _ = _map_labels(
+        [
+            "cash on hand",
+            "cash and short term investments",
+            "receivables",
+            "trade and other receivables",
+            "fixed assets",
+            "right of use assets",
+        ]
+    )
+
+    assert mapped_df.loc[0, "mapping_status"] == "unmapped"
+    assert pd.isna(mapped_df.loc[0, "canonical_label"])
+
+    assert mapped_df.loc[1, "mapping_status"] == "review_only"
+    assert mapped_df.loc[1, "concept_category"] == "composite_label"
+    assert mapped_df.loc[1, "concept_family"] == "liquidity"
+
+    assert mapped_df.loc[2, "mapping_status"] == "unmapped"
+    assert pd.isna(mapped_df.loc[2, "canonical_label"])
+
+    assert mapped_df.loc[3, "mapping_status"] == "review_only"
+    assert mapped_df.loc[3, "canonical_label"] == "receivables_total"
+    assert mapped_df.loc[3, "concept_category"] == "composite_label"
+
+    assert mapped_df.loc[4, "mapping_status"] == "review_only"
+    assert mapped_df.loc[4, "concept_category"] == "conditional_label"
+    assert mapped_df.loc[4, "canonical_label"] != "pp_and_e"
+
+    assert mapped_df.loc[5, "mapping_status"] == "deferred"
+    assert mapped_df.loc[5, "canonical_label"] != "pp_and_e"
+
+
+def test_restricted_cash_flag_is_review_only():
+    mapped_df, _ = _map_labels(["cash and cash equivalents and restricted cash"])
+
+    assert mapped_df.loc[0, "includes_restricted_cash"] is True
+    assert mapped_df.loc[0, "mapping_status"] == "review_only"
+    assert mapped_df.loc[0, "canonical_label"] != "cash_and_equivalents"
+    assert mapped_df.loc[0, "review_reason"] == "restricted_cash_scope"
+
+
+def test_no_fuzzy_matching():
+    mapped_df, _ = _map_labels(["trad receivable", "cash equivalent", "totl assets"])
+
+    assert mapped_df["mapping_status"].tolist() == ["unmapped", "unmapped", "unmapped"]
+    assert mapped_df["canonical_label"].isna().all()
+
+
+@pytest.mark.parametrize("statement_type", ["income_statement", "cash_flow_statement"])
+def test_invalid_or_unsupported_statement_type_raises_value_error(statement_type):
+    df = pd.DataFrame({"line_item": ["total assets"], "2022": [100]})
+
+    with pytest.raises(ValueError, match="Only balance_sheet asset mapping is implemented"):
+        map_statement_rows(df, statement_type)
+
+
+def test_every_row_gets_complete_metadata_columns_and_audit_fields():
+    df = pd.DataFrame({"line_item": ["total assets", "unknown label"], "2022": [100, 50]})
+
+    mapped_df, audit_records = map_statement_rows(df, "balance_sheet")
+
+    for column in MAPPING_METADATA_COLUMNS:
+        assert column in mapped_df.columns
+    assert len(audit_records) == len(df.index)
+    for record in audit_records:
+        assert set(MAPPING_METADATA_COLUMNS).issubset(record.keys())
+
+
+def test_duplicate_canonical_mappings_are_preserved():
+    df = pd.DataFrame(
+        {
+            "line_item": ["accounts receivable", "trade receivables"],
+            "2022": [100, 110],
+        }
+    )
+
+    mapped_df, _ = map_statement_rows(df, "balance_sheet")
+
+    assert len(mapped_df.index) == 2
+    assert mapped_df["line_item"].tolist() == ["accounts receivable", "trade receivables"]
+    assert mapped_df["canonical_label"].tolist() == [
+        "accounts_receivable",
+        "accounts_receivable",
+    ]
