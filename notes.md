@@ -1209,3 +1209,59 @@ persisting anything.
 Review Balance Sheet identity results with representative uploads, then design
 the later analyst review gate for mapping conflicts, skipped checks, and failed
 period-level identities before persistence.
+
+## 31. Clear uploaded data workflow
+
+### What changed
+
+A user-facing clear/reset action was added to the upload/raw preview page. It
+removes the current temporary upload state and returns the workflow to the
+empty upload/no-data state.
+
+### Files touched
+
+- `web/routes.py`
+- `web/templates/data.html`
+- `tests/test_routes.py`
+- `notes.md`
+
+### Why it changed
+
+Temporary uploaded files and metadata can remain on disk during development
+across browser closes or Flask restarts. Users need an explicit way to start
+over without old sample statements continuing to appear in raw or cleaned
+preview pages.
+
+### Current behavior
+
+- The upload/raw preview page shows a `Clear uploaded data` button.
+- `POST /data/clear` clears the `current_upload_id` session value.
+- If the current upload directory exists under `data/temp_uploads/`, that
+  directory and its metadata/uploaded files are removed.
+- The clear route redirects to `/data`.
+- After clearing, `/data/upload` shows empty raw previews.
+- After clearing, `/data/cleaned` shows the existing no-upload state.
+- Uploading new files after clearing still works normally.
+
+### Safety boundaries
+
+- Clearing only targets the currently selected upload directory under
+  `data/temp_uploads/<upload_id>/`.
+- The resolved target must have `data/temp_uploads` as its direct parent before
+  deletion is attempted.
+- Clearing with no current upload is a safe no-op apart from ensuring the
+  session key is absent.
+- Project source files, fixtures, `old_engine_files/`, and paths outside the
+  app upload storage are not touched.
+
+### Known limitations
+
+- This clears only the current session's upload state; it does not perform
+  global cleanup of older abandoned temp upload directories from other sessions.
+- There is still no SQL persistence or permanent saved-company workflow.
+
+### Next suggested step
+
+Add a later development-only cleanup policy for abandoned upload directories,
+such as age-based temp cleanup, while keeping it separate from user-triggered
+current-upload clearing.

@@ -85,6 +85,7 @@ def test_data_upload_renders_with_no_files():
     assert "Upload and Raw Preview" in html
     assert "No upload preview available." in html
     assert "Upload and preview" in html
+    assert "Clear uploaded data" in html
 
 
 def test_uploading_csv_for_one_statement_shows_raw_preview():
@@ -229,6 +230,161 @@ def test_uploading_all_three_statements_still_shows_raw_previews():
     assert "cash-flow.csv" in html
     assert html.count("2 rows x 3 columns") == 3
     assert "Unsupported file type" not in html
+
+
+def test_clear_uploaded_data_removes_single_balance_sheet_upload():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={"balance_sheet": (_balance_sheet_mapping_csv(), "balance-clear.csv")},
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+    assert "balance-clear.csv" in upload_response.get_data(as_text=True)
+
+    with client.session_transaction() as session:
+        upload_id = session.get("current_upload_id")
+    upload_dir = Path("data/temp_uploads", upload_id)
+    assert upload_dir.exists()
+    assert (upload_dir / "metadata.json").exists()
+
+    clear_response = client.post("/data/clear")
+
+    assert clear_response.status_code == 302
+    assert clear_response.headers["Location"].endswith("/data")
+    assert not upload_dir.exists()
+    with client.session_transaction() as session:
+        assert session.get("current_upload_id") is None
+
+    response = client.get("/data", follow_redirects=True)
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "balance-clear.csv" not in html
+    assert "Total Assets" not in html
+    assert "No upload preview available." in html
+
+
+def test_clear_uploaded_data_removes_all_three_statement_previews():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={
+            "income_statement": (_csv_file(b"Revenue"), "income-clear.csv"),
+            "balance_sheet": (_balance_sheet_mapping_csv(), "balance-clear.csv"),
+            "cash_flow_statement": (_csv_file(b"Operating Cash Flow"), "cash-clear.csv"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+    html = upload_response.get_data(as_text=True)
+    assert "income-clear.csv" in html
+    assert "balance-clear.csv" in html
+    assert "cash-clear.csv" in html
+
+    with client.session_transaction() as session:
+        upload_id = session.get("current_upload_id")
+    upload_dir = Path("data/temp_uploads", upload_id)
+    assert upload_dir.exists()
+
+    clear_response = client.post("/data/clear")
+
+    assert clear_response.status_code == 302
+    assert not upload_dir.exists()
+
+    response = client.get("/data/upload")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "income-clear.csv" not in html
+    assert "balance-clear.csv" not in html
+    assert "cash-clear.csv" not in html
+    assert html.count("No upload preview available.") == 3
+
+
+def test_cleaned_data_after_clear_shows_no_upload_state():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={"balance_sheet": (_balance_sheet_mapping_csv(), "balance-cleaned-clear.csv")},
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    cleaned_before_clear = client.get("/data/cleaned")
+    assert cleaned_before_clear.status_code == 200
+    assert "balance-cleaned-clear.csv" in cleaned_before_clear.get_data(as_text=True)
+    assert "Identity check passed." in cleaned_before_clear.get_data(as_text=True)
+
+    clear_response = client.post("/data/clear")
+    assert clear_response.status_code == 302
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "No uploaded files are available to clean." in html
+    assert "balance-cleaned-clear.csv" not in html
+    assert "Identity check passed." not in html
+    assert "total_assets" not in html
+
+
+def test_clear_uploaded_data_is_safe_with_no_upload():
+    client = _client()
+
+    response = client.post("/data/clear")
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/data")
+    with client.session_transaction() as session:
+        assert session.get("current_upload_id") is None
+
+    upload_page = client.get("/data/upload")
+    assert upload_page.status_code == 200
+    assert "No upload preview available." in upload_page.get_data(as_text=True)
+
+
+def test_new_upload_works_after_clear():
+    client = _client()
+
+    first_upload = client.post(
+        "/data/upload",
+        data={"balance_sheet": (_balance_sheet_mapping_csv(), "old-balance.csv")},
+        content_type="multipart/form-data",
+    )
+    assert first_upload.status_code == 200
+    assert "old-balance.csv" in first_upload.get_data(as_text=True)
+
+    clear_response = client.post("/data/clear")
+    assert clear_response.status_code == 302
+
+    second_upload = client.post(
+        "/data/upload",
+        data={"balance_sheet": (_balance_sheet_mapping_csv(), "new-balance.csv")},
+        content_type="multipart/form-data",
+    )
+
+    assert second_upload.status_code == 200
+    html = second_upload.get_data(as_text=True)
+    assert "new-balance.csv" in html
+    assert "old-balance.csv" not in html
+    assert "Total Assets" in html
+
+
+def test_clear_uploaded_data_does_not_touch_old_engine_files():
+    old_engine_path = Path("old_engine_files")
+    before_exists = old_engine_path.exists()
+    before_mtime = old_engine_path.stat().st_mtime if before_exists else None
+
+    response = _client().post("/data/clear")
+
+    assert response.status_code == 302
+    assert old_engine_path.exists() is before_exists
+    if before_exists:
+        assert old_engine_path.stat().st_mtime == before_mtime
 
 
 def test_unsupported_upload_type_shows_clean_error():

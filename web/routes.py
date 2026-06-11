@@ -2,6 +2,7 @@
 
 import json
 import math
+import shutil
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -57,6 +58,16 @@ def _metadata_path(upload_id: str) -> Path:
     return _upload_dir(upload_id) / UPLOAD_METADATA_FILENAME
 
 
+def _is_safe_upload_dir(path: Path) -> bool:
+    try:
+        upload_root = TEMP_UPLOAD_ROOT.resolve()
+        resolved_path = path.resolve()
+    except OSError:
+        return False
+
+    return resolved_path.parent == upload_root
+
+
 def _load_upload_metadata(upload_id: str | None) -> dict:
     if not upload_id:
         return {}
@@ -78,6 +89,19 @@ def _save_upload_metadata(upload_id: str, metadata: dict) -> None:
         json.dumps(metadata, indent=2, sort_keys=True),
         encoding="utf-8",
     )
+
+
+def _clear_upload_state(upload_id: str | None) -> None:
+    session.pop("current_upload_id", None)
+    if not upload_id:
+        return
+
+    upload_dir = _upload_dir(upload_id)
+    if not _is_safe_upload_dir(upload_dir) or not upload_dir.exists():
+        return
+
+    if upload_dir.is_dir():
+        shutil.rmtree(upload_dir)
 
 
 def _save_uploaded_file(upload_id: str, statement: dict, uploaded_file) -> dict:
@@ -315,6 +339,13 @@ def data_upload():
         statements=STATEMENTS,
         previews=previews,
     )
+
+
+@bp.route("/data/clear", methods=["POST"])
+def clear_uploaded_data():
+    """Clear the current temporary upload state and return to data intake."""
+    _clear_upload_state(session.get("current_upload_id"))
+    return redirect(url_for("web.data"))
 
 
 @bp.route("/data/cleaned")
