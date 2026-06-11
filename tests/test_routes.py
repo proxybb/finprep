@@ -35,6 +35,15 @@ def _csv_file(label: bytes = b"Cash") -> BytesIO:
     )
 
 
+def _balance_sheet_mapping_csv() -> BytesIO:
+    return BytesIO(
+        b"Line Item,2022,2023\n"
+        b'Total Assets,"$5,000","$5,500"\n'
+        b'Total Liabilities,"$3,000","$3,300"\n'
+        b'Total Equity,"$2,000","$2,200"\n'
+    )
+
+
 def test_existing_routes_return_200():
     client = _client()
 
@@ -140,12 +149,13 @@ def test_uploading_only_balance_sheet_then_cleaned_preview_succeeds():
     html = response.get_data(as_text=True)
     assert "Cleaned Data Preview" in html
     assert "balance.csv" in html
-    assert "2 rows x 3 columns" in html
+    assert "2 rows x 17 columns" in html
     assert "Mechanical cleaning applied." in html
     assert "Balance Sheet cleaned preview" in html
     assert "Income Statement cleaned preview" in html
     assert "No uploaded file for Income Statement." in html
     assert "No uploaded file for Cash Flow Statement." in html
+    assert "canonical_label" in html
     assert "1000" in html
     assert "$1,000" not in html
 
@@ -266,6 +276,7 @@ def test_clean_data_uses_temporary_upload_and_runs_mechanical_cleaning():
     assert "operating income" in html
     assert "1200" in html
     assert "-500" in html
+    assert "canonical_label" not in html
     assert "revenue" not in html
     assert "ebit" not in html
 
@@ -371,6 +382,150 @@ def test_clean_data_removes_leading_metadata_and_keeps_first_header_blank():
     assert "1200" in html
     assert "revenue" not in html
     assert "ebit" not in html
+
+
+def test_balance_sheet_cleaned_preview_applies_mapping_metadata():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={"balance_sheet": (_balance_sheet_mapping_csv(), "balance-map.csv")},
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "balance-map.csv" in html
+    assert "3 rows x 17 columns" in html
+    assert "canonical_label" in html
+    assert "mapping_status" in html
+    assert "total_assets" in html
+    assert "total_liabilities" in html
+    assert "total_equity" in html
+    assert "5000" in html
+    assert "5500" in html
+    assert "3000" in html
+    assert "3300" in html
+    assert "2000" in html
+    assert "2200" in html
+
+
+def test_balance_sheet_raw_preview_remains_unmapped():
+    response = _client().post(
+        "/data/upload",
+        data={"balance_sheet": (_balance_sheet_mapping_csv(), "balance-raw.csv")},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "balance-raw.csv" in html
+    assert "3 rows x 3 columns" in html
+    assert "Total Assets" in html
+    assert "Total Liabilities" in html
+    assert "Total Equity" in html
+    assert "$5,000" in html
+    assert "canonical_label" not in html
+    assert "total_assets" not in html
+    assert "total_liabilities" not in html
+    assert "total_equity" not in html
+
+
+def test_only_income_statement_cleaned_preview_does_not_run_mapping():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={"income_statement": (_csv_file(b"Revenue"), "income-only.csv")},
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "income-only.csv" in html
+    assert "2 rows x 3 columns" in html
+    assert "canonical_label" not in html
+    assert "total_assets" not in html
+    assert "total_liabilities" not in html
+    assert "total_equity" not in html
+
+
+def test_only_cash_flow_cleaned_preview_does_not_run_mapping():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={"cash_flow_statement": (_csv_file(b"Operating Cash Flow"), "cash-only.csv")},
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "cash-only.csv" in html
+    assert "2 rows x 3 columns" in html
+    assert "canonical_label" not in html
+    assert "total_assets" not in html
+    assert "total_liabilities" not in html
+    assert "total_equity" not in html
+
+
+def test_three_statement_cleaned_preview_still_works_with_balance_sheet_mapping():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={
+            "income_statement": (_csv_file(b"Revenue"), "income.csv"),
+            "balance_sheet": (_balance_sheet_mapping_csv(), "balance.csv"),
+            "cash_flow_statement": (_csv_file(b"Operating Cash Flow"), "cash-flow.csv"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "income.csv" in html
+    assert "balance.csv" in html
+    assert "cash-flow.csv" in html
+    assert "total_assets" in html
+    assert "total_liabilities" in html
+    assert "total_equity" in html
+
+
+def test_balance_sheet_mapping_error_shows_clean_error(monkeypatch):
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={"balance_sheet": (_balance_sheet_mapping_csv(), "balance-error.csv")},
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    def fail_mapping(_df, _statement_type):
+        raise ValueError("Mapping failed cleanly.")
+
+    monkeypatch.setattr("web.routes.map_statement_rows", fail_mapping)
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "balance-error.csv" in html
+    assert "cleaning unavailable" in html
+    assert "Mapping failed cleanly." in html
 
 
 def test_cleaned_data_with_no_current_upload_shows_empty_state():

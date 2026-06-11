@@ -11,6 +11,7 @@ from flask import Blueprint, redirect, render_template, request, session, url_fo
 from werkzeug.utils import secure_filename
 
 from cleaning.ingest import IngestionError, read_uploaded_file
+from cleaning.mapping import map_statement_rows
 from cleaning.mechanical import run_mechanical_cleaning
 from cleaning.orientation import normalize_orientation
 from cleaning.table_boundary import normalize_table_boundary
@@ -248,11 +249,15 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
             cleaned_df = cleaning_result["cleaned_df"]
             boundary_result = normalize_table_boundary(cleaned_df)
             orientation_result = normalize_orientation(boundary_result.dataframe)
+            preview_df = orientation_result.dataframe
+            if statement["field_name"] == "balance_sheet":
+                preview_df, _mapping_audit = map_statement_rows(preview_df, "balance_sheet")
+
             results[statement["key"]] = {
                 "filename": metadata_entry["filename"],
                 "error": None,
                 "table": build_table_preview(
-                    orientation_result.dataframe,
+                    preview_df,
                     first_column_header="",
                     highlight_missing=True,
                 ),

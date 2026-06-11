@@ -1021,3 +1021,53 @@ only saved uploaded statements, so no route or template changes were needed.
 Review the single-statement workflow manually with representative Balance Sheet
 uploads, then decide whether the next backend step should wire Balance Sheet
 mapping internally or keep expanding statement mapping coverage first.
+
+## 28. Balance Sheet mapping wired into cleaned backend flow
+
+### What changed
+
+The cleaned preview backend now applies Balance Sheet label mapping after the
+existing cleaned pipeline finishes ingestion, mechanical cleaning,
+table-boundary cleanup, and orientation detection.
+
+### Files touched
+
+- `web/routes.py`
+- `web/templates/cleaned_data.html`
+- `tests/test_routes.py`
+- `notes.md`
+
+### Why it changed
+
+Balance Sheet asset, liability, and equity mapping already existed as backend
+logic. This wires that mapper into the cleaned Balance Sheet flow only, so the
+mapped DataFrame and metadata columns can be inspected before any later schema,
+identity, derivation, rollup, or persistence work.
+
+### Current behavior
+
+- Raw preview remains raw and does not run mapping.
+- `/data/cleaned` runs mapping only for uploaded Balance Sheet files.
+- Income Statement and Cash Flow cleaned previews continue through the existing
+  cleaning, table-boundary, and orientation pipeline without mapping.
+- Balance Sheet cleaned preview now includes the mapping metadata columns
+  appended by `map_statement_rows`.
+- Cleaned preview status copy now indicates label mapping is Balance Sheet only.
+- Original labels, row order, duplicate rows, and period values are preserved.
+- If Balance Sheet mapping raises a clean error, the cleaned page renders an
+  error for that statement instead of returning a 500.
+
+### Known limitations
+
+- Income Statement and Cash Flow mapping are not implemented or wired.
+- Schema validation, derivations, identity checks, rollups, and SQL persistence
+  are not implemented.
+- Mapping metadata is shown directly in the cleaned preview table for this
+  backend proof step.
+- Mapping audit records are not surfaced separately yet.
+
+### Next suggested step
+
+Review Balance Sheet cleaned previews with representative uploads, then decide
+whether to add a review-oriented display for mapping metadata or keep the next
+step backend-only.
