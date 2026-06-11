@@ -734,3 +734,35 @@ handling, and abandoned-file cleanup.
 Review upload/raw preview and cleaned preview with representative files, then
 design the Save Data step where the user confirms company name before any
 persistence or validation workflow is introduced.
+
+## 22. Table-boundary metadata API simplification
+
+### What changed
+
+`TableBoundaryResult` no longer exposes a `metadata` field. The table-boundary
+stage now uses simple metadata-prefix detection only to decide whether leading
+rows should be removed before orientation.
+
+This is a refactor only, not a product behavior change.
+
+### Behavior preserved
+
+Leading metadata rows such as `Company:`, `Title:`, `Statement:`, `Currency:`,
+and `Units:` are still removed from cleaned working tables to protect table
+boundary detection. Metadata-like rows in the middle of a statement are still
+preserved. Annotation/comment columns are still removed from the cleaned working
+table before orientation. Raw preview remains raw.
+
+Company name remains deferred to Save Data and is not stored, displayed, or
+passed through the cleaned-preview route payload at this stage.
+
+### Route payload cleanup
+
+The cleaned-preview route no longer passes unused mechanical audit or
+table-boundary payload fields to the template. Orientation status and message
+remain available because they are part of the current cleaned preview display.
+
+### Next suggested step
+
+Continue reviewing the current upload and cleaned-preview flow with real sample
+files before adding the Save Data step.

@@ -16,7 +16,6 @@ class TableBoundaryResult:
     """Result of leading metadata cleanup and header-row promotion."""
 
     dataframe: pd.DataFrame
-    metadata: dict[str, str]
     status: str
     action: str
     message: str
@@ -63,23 +62,19 @@ def _is_non_year_text_label(value: Any) -> bool:
     return bool(text) and not _is_historical_year_label(text)
 
 
-def _metadata_from_text(value: Any) -> tuple[str, str] | None:
+def _is_metadata_text(value: Any) -> bool:
     text = _text_value(value)
     if not text:
-        return None
+        return False
 
-    metadata_match = re.fullmatch(
-        r"(company|statement|title|currency|units)\s*:\s*(.+)",
-        text,
-        flags=re.IGNORECASE,
+    return bool(
+        re.fullmatch(
+            r"(company|statement|title|currency|units)\s*:\s*.+",
+            text,
+            flags=re.IGNORECASE,
+        )
+        or re.match(r"prepared by\b", text, flags=re.IGNORECASE)
     )
-    if metadata_match:
-        return metadata_match.group(1).lower(), metadata_match.group(2).strip()
-
-    if re.match(r"prepared by\b", text, flags=re.IGNORECASE):
-        return "prepared_by", text
-
-    return None
 
 
 def _count_historical_years(values: list[Any]) -> int:
@@ -99,7 +94,7 @@ def _row_looks_like_table_header(values: list[Any]) -> bool:
     text_label_count = sum(
         1
         for value in remaining_values
-        if _is_non_year_text_label(value) and not _metadata_from_text(value)
+        if _is_non_year_text_label(value) and not _is_metadata_text(value)
     )
     return historical_year_count >= 2 or text_label_count >= 1
 
@@ -108,8 +103,7 @@ def _row_is_leading_metadata(values: list[Any]) -> bool:
     if not values:
         return False
 
-    row_metadata = _metadata_from_text(values[0])
-    return bool(row_metadata)
+    return _is_metadata_text(values[0])
 
 
 def _drop_annotation_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
@@ -160,13 +154,12 @@ def _promote_row_to_header(df: pd.DataFrame, row_position: int) -> pd.DataFrame:
 
 def normalize_table_boundary(df: pd.DataFrame) -> TableBoundaryResult:
     """Remove leading metadata and promote a clear table header when present."""
-    metadata: dict[str, str] = {}
     working, annotation_columns_removed = _drop_non_table_columns(df)
     action = "no_change"
     if annotation_columns_removed:
         action = "annotation_columns_removed"
 
-    if len(working.columns) > 0 and _metadata_from_text(working.columns[0]):
+    if len(working.columns) > 0 and _is_metadata_text(working.columns[0]):
         working.columns = list(range(len(working.columns)))
         action = "metadata_header_reset"
 
@@ -183,7 +176,6 @@ def normalize_table_boundary(df: pd.DataFrame) -> TableBoundaryResult:
             bounded, _ = _drop_non_table_columns(bounded)
             return TableBoundaryResult(
                 dataframe=bounded,
-                metadata=metadata,
                 status="bounded",
                 action="header_row_promoted",
                 message="Table boundary normalized.",
@@ -202,7 +194,6 @@ def normalize_table_boundary(df: pd.DataFrame) -> TableBoundaryResult:
     )
     return TableBoundaryResult(
         dataframe=working,
-        metadata=metadata,
         status=status,
         action=action,
         message=message,

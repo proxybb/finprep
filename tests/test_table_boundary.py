@@ -15,7 +15,6 @@ def test_leading_company_metadata_is_removed_without_capture():
     result = normalize_table_boundary(df)
 
     assert result.status == "bounded"
-    assert result.metadata == {}
     assert result.dataframe.to_dict("records") == [
         {"line_item": "revenue", "2021": 1200, "2022": 1400},
         {"line_item": "operating income", "2021": 500, "2022": 650},
@@ -34,7 +33,6 @@ def test_leading_title_metadata_is_removed():
     result = normalize_table_boundary(df)
 
     assert result.status == "bounded"
-    assert result.metadata == {}
     assert result.dataframe.to_dict("records") == [
         {"line_item": "cash", "2021": 100, "2022": 120},
         {"line_item": "total assets", "2021": 500, "2022": 550},
@@ -59,7 +57,6 @@ def test_leading_statement_currency_and_units_metadata_are_removed():
     result = normalize_table_boundary(df)
 
     assert result.status == "bounded"
-    assert result.metadata == {}
     assert result.dataframe.to_dict("records") == [
         {"line_item": "revenue", "2021": 1200, "2022": 1400},
         {"line_item": "operating income", "2021": 500, "2022": 650},
@@ -85,7 +82,6 @@ def test_leading_metadata_with_junk_cells_is_removed():
     result = normalize_table_boundary(df)
 
     assert result.status == "bounded"
-    assert result.metadata == {}
     assert list(result.dataframe.columns) == ["year", "sales", "operating income"]
     output_text = result.dataframe.to_string()
     assert "DemoCo" not in output_text
@@ -108,7 +104,6 @@ def test_metadata_like_row_in_middle_is_preserved():
 
     result = normalize_table_boundary(df)
 
-    assert result.metadata == {}
     assert result.dataframe.to_dict("records") == [
         {"line_item": "revenue", "2021": 1200, "2022": 1400},
         {"line_item": "Company: Segment A", "2021": 300, "2022": 350},
@@ -131,7 +126,6 @@ def test_header_row_is_promoted_when_metadata_was_parsed_as_headers():
 
     assert result.status == "bounded"
     assert result.action == "header_row_promoted"
-    assert result.metadata == {}
     assert list(result.dataframe.columns) == ["year", "sales", "operating income"]
     assert result.dataframe.to_dict("records") == [
         {"year": "2021", "sales": 1200, "operating income": 500},
@@ -152,7 +146,6 @@ def test_uncertain_table_boundary_stays_unchanged_conservatively():
 
     assert result.status == "unchanged"
     assert result.action == "no_change"
-    assert result.metadata == {}
     assert result.dataframe.equals(df)
 
 

@@ -256,17 +256,11 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
                     first_column_header="",
                     highlight_missing=True,
                 ),
-                "audit_log": cleaning_result["audit_log"],
                 "orientation": {
                     "status": orientation_result.status,
                     "action": orientation_result.action,
                     "confidence": orientation_result.confidence,
                     "message": orientation_result.message,
-                },
-                "table_boundary": {
-                    "status": boundary_result.status,
-                    "action": boundary_result.action,
-                    "message": boundary_result.message,
                 },
             }
         except (IngestionError, OSError, KeyError, ValueError) as exc:
@@ -274,9 +268,7 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
                 "filename": metadata_entry.get("filename", "uploaded file"),
                 "error": str(exc),
                 "table": None,
-                "audit_log": None,
                 "orientation": None,
-                "table_boundary": None,
             }
 
     return results
