@@ -293,11 +293,14 @@ def test_equation_totals_are_not_mapped_to_total_liabilities():
 
     assert mapped_df["mapping_status"].tolist() == ["review_only", "review_only"]
     assert mapped_df["concept_category"].tolist() == ["composite_label", "composite_label"]
-    assert mapped_df["concept_family"].tolist() == ["total_liabilities", "total_liabilities"]
+    assert mapped_df["concept_family"].tolist() == [
+        "total_equity_and_liabilities",
+        "total_equity_and_liabilities",
+    ]
     assert not (mapped_df["canonical_label"] == "total_liabilities").any()
     assert mapped_df["review_reason"].tolist() == [
-        "accounting_equation_total_not_liabilities_only",
-        "accounting_equation_total_not_liabilities_only",
+        "accounting_equation_total_not_equity_only",
+        "accounting_equation_total_not_equity_only",
     ]
 
 
@@ -378,4 +381,182 @@ def test_duplicate_liability_canonical_mappings_are_preserved():
     assert mapped_df["canonical_label"].tolist() == [
         "accounts_payable",
         "accounts_payable",
+    ]
+
+
+def test_auto_maps_explicit_total_equity():
+    mapped_df, _ = _map_labels(["total equity"])
+
+    assert mapped_df.loc[0, "mapping_status"] == "auto_mapped"
+    assert mapped_df.loc[0, "canonical_label"] == "total_equity"
+    assert mapped_df.loc[0, "display_label"] == "Total Equity"
+    assert mapped_df.loc[0, "concept_family"] == "total_equity"
+    assert mapped_df.loc[0, "rollup_role"] == "total"
+
+
+def test_owner_only_equity_labels_are_review_only_not_total_equity():
+    mapped_df, _ = _map_labels(
+        [
+            "shareholders equity",
+            "stockholders equity",
+            "total shareholders equity",
+            "equity attributable to owners of the parent",
+        ]
+    )
+
+    assert mapped_df["mapping_status"].tolist() == ["review_only"] * 4
+    assert mapped_df["canonical_label"].isna().all()
+    assert mapped_df["concept_category"].tolist() == ["conditional_label"] * 4
+    assert mapped_df["concept_family"].tolist() == ["owner_equity"] * 4
+    assert mapped_df["review_reason"].tolist() == [
+        "owner_only_equity_may_exclude_non_controlling_interests",
+        "owner_only_equity_may_exclude_non_controlling_interests",
+        "owner_only_equity_may_exclude_non_controlling_interests",
+        "owner_only_equity_may_exclude_non_controlling_interests",
+    ]
+
+
+def test_equity_components_are_deferred():
+    mapped_df, _ = _map_labels(
+        [
+            "retained earnings",
+            "accumulated deficit",
+            "share capital",
+            "additional paid in capital",
+            "treasury stock",
+            "accumulated other comprehensive income",
+        ]
+    )
+
+    assert mapped_df["mapping_status"].tolist() == ["deferred"] * 6
+    assert mapped_df["canonical_label"].isna().all()
+    assert mapped_df["concept_family"].tolist() == ["equity_components"] * 6
+    assert mapped_df["review_reason"].tolist() == ["equity_component_not_supported_yet"] * 6
+
+
+def test_non_controlling_interest_labels_are_deferred():
+    mapped_df, _ = _map_labels(
+        [
+            "non controlling interests",
+            "non-controlling interests",
+            "minority interest",
+        ]
+    )
+
+    assert mapped_df["mapping_status"].tolist() == ["deferred"] * 3
+    assert mapped_df["canonical_label"].isna().all()
+    assert mapped_df["concept_family"].tolist() == ["non_controlling_interest"] * 3
+    assert mapped_df["review_reason"].tolist() == [
+        "non_controlling_interest_not_supported_yet",
+        "non_controlling_interest_not_supported_yet",
+        "non_controlling_interest_not_supported_yet",
+    ]
+
+
+def test_equity_equation_totals_are_not_mapped_to_total_equity():
+    mapped_df, _ = _map_labels(
+        [
+            "total equity and liabilities",
+            "total liabilities and equity",
+            "total liabilities and shareholders equity",
+        ]
+    )
+
+    assert mapped_df["mapping_status"].tolist() == ["review_only"] * 3
+    assert mapped_df["canonical_label"].isna().all()
+    assert mapped_df["concept_category"].tolist() == ["composite_label"] * 3
+    assert mapped_df["concept_family"].tolist() == ["total_equity_and_liabilities"] * 3
+    assert mapped_df["review_reason"].tolist() == [
+        "accounting_equation_total_not_equity_only",
+        "accounting_equation_total_not_equity_only",
+        "accounting_equation_total_not_equity_only",
+    ]
+
+
+def test_broad_equity_label_is_unmapped():
+    mapped_df, _ = _map_labels(["equity"])
+
+    assert mapped_df.loc[0, "mapping_status"] == "unmapped"
+    assert pd.isna(mapped_df.loc[0, "canonical_label"])
+    assert mapped_df.loc[0, "concept_category"] == "broad_label"
+    assert mapped_df.loc[0, "concept_family"] == "total_equity"
+
+
+def test_equity_mapping_preserves_numeric_values_and_signs():
+    df = pd.DataFrame(
+        {
+            "line_item": ["total equity", "retained earnings"],
+            "2022": [1000, -250],
+            "2023": [1200, -200],
+        }
+    )
+
+    mapped_df, _ = map_statement_rows(df, "balance_sheet")
+
+    assert mapped_df["2022"].tolist() == [1000, -250]
+    assert mapped_df["2023"].tolist() == [1200, -200]
+
+
+def test_equity_mapping_does_not_mutate_input_dataframe():
+    df = pd.DataFrame(
+        {
+            "line_item": ["total equity", "retained earnings"],
+            "2022": [100, 200],
+        }
+    )
+    original = df.copy(deep=True)
+
+    map_statement_rows(df, "balance_sheet")
+
+    pd.testing.assert_frame_equal(df, original)
+
+
+def test_equity_mapping_does_not_drop_rows():
+    df = pd.DataFrame(
+        {
+            "line_item": ["total equity", "unknown equity label", "retained earnings"],
+            "2022": [100, 150, 200],
+        }
+    )
+
+    mapped_df, _ = map_statement_rows(df, "balance_sheet")
+
+    assert len(mapped_df.index) == len(df.index)
+    assert mapped_df["line_item"].tolist() == df["line_item"].tolist()
+
+
+def test_equity_mapping_does_not_fuzzy_match():
+    mapped_df, _ = _map_labels(["shareholdrs equity", "totl equity", "retaned earnings"])
+
+    assert mapped_df["mapping_status"].tolist() == ["unmapped", "unmapped", "unmapped"]
+    assert mapped_df["canonical_label"].isna().all()
+
+
+def test_equity_mapping_every_row_gets_complete_metadata():
+    df = pd.DataFrame({"line_item": ["total equity", "unknown equity label"], "2022": [100, 50]})
+
+    mapped_df, audit_records = map_statement_rows(df, "balance_sheet")
+
+    for column in MAPPING_METADATA_COLUMNS:
+        assert column in mapped_df.columns
+    assert len(audit_records) == len(df.index)
+    for record in audit_records:
+        assert set(MAPPING_METADATA_COLUMNS).issubset(record.keys())
+
+
+def test_duplicate_total_equity_mappings_are_preserved():
+    df = pd.DataFrame(
+        {
+            "line_item": ["total equity", "Total Equity"],
+            "2022": [100, 110],
+        }
+    )
+
+    mapped_df, _ = map_statement_rows(df, "balance_sheet")
+
+    assert len(mapped_df.index) == 2
+    assert mapped_df["line_item"].tolist() == ["total equity", "Total Equity"]
+    assert mapped_df["canonical_label"].tolist() == [
+        "total_equity",
+        "total_equity",
     ]

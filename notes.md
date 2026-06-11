@@ -919,3 +919,56 @@ validation, derivations, identity checks, rollups, or persistence.
 Review the combined Balance Sheet Assets and Liabilities mapping rules against
 representative uploads, then implement Balance Sheet Equity mapping as the next
 separate backend-only slice.
+
+## 26. Stage 4A-3 Balance Sheet Equity mapping backend
+
+### What changed
+
+Backend-only deterministic Balance Sheet mapping was extended to include Equity
+labels. The existing mapper signature and metadata fields were preserved.
+
+### Files touched
+
+- `cleaning/mapping.py`
+- `tests/test_mapping.py`
+- `notes.md`
+
+### Why it changed
+
+This completes the initial backend-only Balance Sheet mapping coverage across
+assets, liabilities, and equity without wiring mapping into routes, changing
+preview behavior, adding validation, deriving values, checking identities,
+rolling up rows, or persisting data.
+
+### Current behavior
+
+- `map_statement_rows(df, statement_type)` still supports only
+  `balance_sheet`.
+- Only explicit total equity labels auto-map to `total_equity`.
+- Owner-only equity labels such as shareholders equity, stockholders equity,
+  and equity attributable to owners of the parent are `review_only` because
+  they may exclude non-controlling interests.
+- Equity components such as retained earnings, share capital, treasury stock,
+  and accumulated other comprehensive income are deferred.
+- Non-controlling interest and minority interest labels are deferred.
+- Accounting-equation totals such as total equity and liabilities are
+  `review_only` and are not mapped to `total_equity`.
+- The mapper still copies input DataFrames, preserves period values and signs,
+  preserves row order, keeps duplicate canonical mappings, and does exact
+  deterministic matching only.
+
+### Known limitations
+
+- Income statement and cash flow mapping are not implemented.
+- Mapping is still not wired into Flask routes or the cleaned preview pipeline.
+- Schema validation, derivations, identity checks, rollups, and SQL persistence
+  are not implemented.
+- Equity component analysis and non-controlling interest handling are deferred.
+- No fuzzy matching or synonym inference exists.
+
+### Next suggested step
+
+Review representative Balance Sheet uploads against the combined asset,
+liability, and equity mappings, then decide whether to wire Balance Sheet
+mapping into an internal backend pipeline step or implement the next statement
+mapping slice separately.

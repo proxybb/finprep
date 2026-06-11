@@ -85,9 +85,13 @@ def _metadata_for_label(
 ) -> dict:
     rule = _SPECIAL_ASSET_RULES.get(normalized_label)
     if rule is None:
+        rule = _SPECIAL_EQUITY_RULES.get(normalized_label)
+    if rule is None:
         rule = _SPECIAL_LIABILITY_RULES.get(normalized_label)
     if rule is None:
         rule = _AUTO_MAP_ASSET_RULES.get(normalized_label)
+    if rule is None:
+        rule = _AUTO_MAP_EQUITY_RULES.get(normalized_label)
     if rule is None:
         rule = _AUTO_MAP_LIABILITY_RULES.get(normalized_label)
 
@@ -160,6 +164,11 @@ def _auto_rule(
         concept_family=concept_family,
         rollup_role=rollup_role,
     )
+
+
+def _title_display_label(alias: str) -> str:
+    special_words = {"aoci": "AOCI"}
+    return " ".join(special_words.get(word, word.title()) for word in alias.split())
 
 
 _AUTO_MAP_ASSET_RULES = {
@@ -336,6 +345,16 @@ _AUTO_MAP_LIABILITY_RULES["total liabilities"] = _auto_rule(
     concept_family="total_liabilities",
     rollup_role="total",
 )
+
+_AUTO_MAP_EQUITY_RULES = {
+    "total equity": _auto_rule(
+        alias="total equity",
+        canonical_label="total_equity",
+        display_label="Total Equity",
+        concept_family="total_equity",
+        rollup_role="total",
+    )
+}
 
 
 _SPECIAL_ASSET_RULES = {
@@ -572,6 +591,132 @@ _SPECIAL_ASSET_RULES = {
         review_reason="other_non_current_assets_not_supported_yet",
     ),
 }
+
+_SPECIAL_EQUITY_RULES = {
+    alias: _asset_rule(
+        mapping_status="review_only",
+        canonical_label=None,
+        display_label=_title_display_label(alias),
+        matched_alias=alias,
+        matched_rule_kind="special_review",
+        concept_category="conditional_label",
+        concept_family="owner_equity",
+        rollup_role="conditional",
+        review_reason="owner_only_equity_may_exclude_non_controlling_interests",
+    )
+    for alias in (
+        "shareholders equity",
+        "stockholders equity",
+        "total shareholders equity",
+        "total stockholders equity",
+        "total common shareholders equity",
+        "equity attributable to owners of the parent",
+        "equity attributable to owners of parent",
+        "equity attributable to shareholders",
+        "equity attributable to shareholders of the parent",
+    )
+}
+
+_SPECIAL_EQUITY_RULES.update(
+    {
+        alias: _asset_rule(
+            mapping_status="deferred",
+            canonical_label=None,
+            display_label=_title_display_label(alias),
+            matched_alias=alias,
+            matched_rule_kind="special_review",
+            concept_category="deferred_canonical",
+            concept_family="equity_components",
+            rollup_role="component",
+            review_reason="equity_component_not_supported_yet",
+        )
+        for alias in (
+            "retained earnings",
+            "accumulated deficit",
+            "share capital",
+            "common stock",
+            "ordinary shares",
+            "additional paid in capital",
+            "additional paid-in capital",
+            "share premium",
+            "treasury stock",
+            "treasury shares",
+            "other reserves",
+            "accumulated other comprehensive income",
+            "accumulated other comprehensive loss",
+            "aoci",
+        )
+    }
+)
+
+_SPECIAL_EQUITY_RULES.update(
+    {
+        alias: _asset_rule(
+            mapping_status="deferred",
+            canonical_label=None,
+            display_label=_title_display_label(alias),
+            matched_alias=alias,
+            matched_rule_kind="special_review",
+            concept_category="deferred_canonical",
+            concept_family="non_controlling_interest",
+            rollup_role="component",
+            review_reason="non_controlling_interest_not_supported_yet",
+        )
+        for alias in (
+            "non controlling interests",
+            "non-controlling interests",
+            "noncontrolling interests",
+            "minority interest",
+            "minority interests",
+        )
+    }
+)
+
+_SPECIAL_EQUITY_RULES.update(
+    {
+        alias: _asset_rule(
+            mapping_status="review_only",
+            canonical_label=None,
+            display_label=_title_display_label(alias),
+            matched_alias=alias,
+            matched_rule_kind="special_review",
+            concept_category="composite_label",
+            concept_family="total_equity_and_liabilities",
+            rollup_role="composite",
+            review_reason="accounting_equation_total_not_equity_only",
+        )
+        for alias in (
+            "total equity and liabilities",
+            "total liabilities and equity",
+            "total liabilities and shareholders equity",
+            "total liabilities and stockholders equity",
+        )
+    }
+)
+
+_SPECIAL_EQUITY_RULES["equity"] = _asset_rule(
+    mapping_status="unmapped",
+    canonical_label=None,
+    display_label=None,
+    matched_alias="equity",
+    matched_rule_kind="special_review",
+    concept_category="broad_label",
+    concept_family="total_equity",
+    rollup_role="broad_unspecified",
+    review_reason="broad_equity_label",
+)
+
+_SPECIAL_EQUITY_RULES["capital and reserves"] = _asset_rule(
+    mapping_status="review_only",
+    canonical_label=None,
+    display_label="Capital and Reserves",
+    matched_alias="capital and reserves",
+    matched_rule_kind="special_review",
+    concept_category="conditional_label",
+    concept_family="owner_equity",
+    rollup_role="conditional",
+    review_reason="may_not_equal_total_equity",
+)
 
 _SPECIAL_LIABILITY_RULES = {
     "accounts payable and accrued expenses": _asset_rule(
