@@ -10,6 +10,7 @@ import pandas as pd
 
 from configs.currencies import SUPPORTED_CURRENCY_CODES
 from cleaning.audit import MechanicalAuditLog
+from cleaning.period_mapping import normalize_period_label
 
 
 MISSING_STRINGS = {
@@ -26,33 +27,6 @@ MISSING_STRINGS = {
     "NULL",
     "null",
 }
-
-MONTH_NAMES = (
-    "jan",
-    "january",
-    "feb",
-    "february",
-    "mar",
-    "march",
-    "apr",
-    "april",
-    "may",
-    "jun",
-    "june",
-    "jul",
-    "july",
-    "aug",
-    "august",
-    "sep",
-    "sept",
-    "september",
-    "oct",
-    "october",
-    "nov",
-    "november",
-    "dec",
-    "december",
-)
 
 HEADER_SEPARATOR_PATTERN = re.compile(r"[_\-/.,\r\n]+")
 HEADER_APOSTROPHE_PATTERN = re.compile(r"['\u2019]")
@@ -175,47 +149,6 @@ def normalize_headers(df: pd.DataFrame) -> pd.DataFrame:
     cleaned = df.copy()
     cleaned.columns = [normalize_header_text(column) for column in cleaned.columns]
     return cleaned
-
-
-def normalize_period_label(value: Any) -> Any:
-    """Normalize only obvious period labels."""
-    if not isinstance(value, str):
-        return value
-
-    text = normalize_string_value(value)
-
-    quarter_match = re.fullmatch(r"Q([1-4])\s+(\d{4})", text, flags=re.IGNORECASE)
-    if quarter_match:
-        return f"Q{quarter_match.group(1)} {quarter_match.group(2)}"
-
-    as_of_year_match = re.fullmatch(r"as of\s+(\d{4})", text, flags=re.IGNORECASE)
-    if as_of_year_match:
-        return as_of_year_match.group(1)
-
-    month_pattern = "|".join(MONTH_NAMES)
-    as_of_month_day_year_match = re.fullmatch(
-        rf"as of\s+({month_pattern})\s+\d{{1,2}},?\s+(\d{{4}})",
-        text,
-        flags=re.IGNORECASE,
-    )
-    if as_of_month_day_year_match:
-        return as_of_month_day_year_match.group(2)
-
-    fiscal_year_match = re.fullmatch(r"FY\s*(\d{4})A?", text, flags=re.IGNORECASE)
-    if fiscal_year_match:
-        return fiscal_year_match.group(1)
-
-    actual_year_match = re.fullmatch(r"(\d{4})A", text, flags=re.IGNORECASE)
-    if actual_year_match:
-        return actual_year_match.group(1)
-
-    month_year_match = re.fullmatch(
-        rf"({month_pattern})[-\s]+(\d{{4}})", text, flags=re.IGNORECASE
-    )
-    if month_year_match:
-        return month_year_match.group(2)
-
-    return value
 
 
 def _normalize_cell_value(value: Any, audit_log: MechanicalAuditLog) -> Any:

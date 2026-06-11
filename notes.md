@@ -766,3 +766,50 @@ remain available because they are part of the current cleaned preview display.
 
 Continue reviewing the current upload and cleaned-preview flow with real sample
 files before adding the Save Data step.
+
+## 23. Period mapping module refactor
+
+### What changed
+
+Period-label normalization was moved out of `cleaning/mechanical.py` into
+`cleaning/period_mapping.py`.
+
+### Files touched
+
+- `cleaning/mechanical.py`
+- `cleaning/period_mapping.py`
+- `notes.md`
+
+### Why it changed
+
+Period normalization is still part of the pre-orientation mechanical cleanup
+pipeline, but it now lives in its own small module so future label mapping can
+be added separately without mixing accounting label semantics into mechanical
+cleaning.
+
+### Current behavior
+
+The cleaned-preview pipeline remains:
+
+`ingestion -> mechanical cleaning -> table-boundary cleanup -> orientation detection`
+
+Raw preview remains raw. Mechanical cleaning still normalizes obvious annual
+period labels before table-boundary cleanup and orientation detection. Existing
+behavior is preserved for labels such as `FY2021`, `2021A`, `as of 2021`, and
+`Dec-2022`. Forecast and estimate labels such as `2024E` and `2025F` remain
+preserved for later validation. Duplicate period columns remain preserved.
+
+### Known limitations
+
+- Label mapping is not implemented.
+- Schema validation is not implemented in this refactor.
+- Derivations are not implemented in this refactor.
+- Identity checks are not implemented.
+- SQL persistence is not implemented.
+- Forecast/estimate periods are preserved but not validated here.
+- Duplicate period conflicts are not resolved here.
+
+### Next suggested step
+
+Implement Stage 4 label mapping as a separate module and pipeline stage, keeping
+period normalization before table-boundary cleanup and orientation detection.
