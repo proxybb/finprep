@@ -1143,3 +1143,69 @@ the identity check, derive values, roll up rows, or persist data.
 Review Balance Sheet schema validation output with representative uploads, then
 decide whether to add a dedicated analyst review view for mapping and schema
 issues or keep the next step backend-only.
+
+## 30. Balance Sheet identity check backend
+
+### What changed
+
+Backend-only Balance Sheet identity checking was added after Balance Sheet
+schema validation in the cleaned preview flow.
+
+### Files touched
+
+- `cleaning/identities.py`
+- `tests/test_identities.py`
+- `web/routes.py`
+- `web/templates/cleaned_data.html`
+- `tests/test_routes.py`
+- `notes.md`
+
+### Why it changed
+
+Schema validation can now identify whether strict Balance Sheet identity inputs
+exist. The next backend step is to verify the accounting equation using only
+those strict mapped totals, without deriving, aggregating, reviewing, or
+persisting anything.
+
+### Current behavior
+
+- `check_balance_sheet_identity(mapped_df, schema_result)` returns a
+  serializable result with `statement_type`, `check_name`, `ran`, `passed`,
+  `skipped_reason`, `tolerance`, per-period results, and `errors`.
+- `/data/cleaned` runs the identity check only for uploaded Balance Sheets,
+  immediately after Balance Sheet schema validation.
+- Income Statement and Cash Flow cleaned previews do not run identity checks.
+- The cleaned page shows a compact status: identity passed, failed, or skipped.
+- Raw preview, upload behavior, period normalization, table-boundary logic, and
+  orientation logic are unchanged.
+
+### Identity check rules
+
+- The only checked equation is `total_assets = total_liabilities + total_equity`.
+- The check runs only when Balance Sheet schema validation reports
+  `identity_ready == true`.
+- Only rows with `mapping_status == "auto_mapped"` and canonical labels
+  `total_assets`, `total_liabilities`, or `total_equity` are used.
+- Review-only, deferred, unmapped, conditional, candidate, and component rows
+  are ignored.
+- Missing totals are not derived, and components are not summed.
+- The mapped DataFrame is not mutated and no rows are dropped.
+- The check runs per numeric period column while ignoring mapping metadata and
+  label columns.
+- Duplicate strict canonical rows produce a clean skipped result with an error
+  record; duplicates are not silently selected or aggregated.
+- Non-numeric period values produce clean per-period errors instead of crashes.
+- Rounding differences pass when the absolute difference is no more than `1.0`.
+
+### Known limitations
+
+- No derivations, rollups, user approval/review gate, or SQL persistence exists.
+- There are no identity checks for Income Statement or Cash Flow Statement.
+- Duplicate canonical conflict resolution is intentionally deferred.
+- The UI only shows minimal identity status, not detailed period differences.
+
+### Next suggested step
+
+Review Balance Sheet identity results with representative uploads, then design
+the later analyst review gate for mapping conflicts, skipped checks, and failed
+period-level identities before persistence.

@@ -11,6 +11,7 @@ from flask import Blueprint, redirect, render_template, request, session, url_fo
 from werkzeug.utils import secure_filename
 
 from cleaning.ingest import IngestionError, read_uploaded_file
+from cleaning.identities import check_balance_sheet_identity
 from cleaning.mapping import map_statement_rows
 from cleaning.mechanical import run_mechanical_cleaning
 from cleaning.orientation import normalize_orientation
@@ -252,9 +253,11 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
             orientation_result = normalize_orientation(boundary_result.dataframe)
             preview_df = orientation_result.dataframe
             schema_validation = None
+            identity_check = None
             if statement["field_name"] == "balance_sheet":
                 preview_df, _mapping_audit = map_statement_rows(preview_df, "balance_sheet")
                 schema_validation = validate_balance_sheet_schema(preview_df)
+                identity_check = check_balance_sheet_identity(preview_df, schema_validation)
 
             results[statement["key"]] = {
                 "filename": metadata_entry["filename"],
@@ -271,6 +274,7 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
                     "message": orientation_result.message,
                 },
                 "schema_validation": schema_validation,
+                "identity_check": identity_check,
             }
         except (IngestionError, OSError, KeyError, ValueError) as exc:
             results[statement["key"]] = {
@@ -279,6 +283,7 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
                 "table": None,
                 "orientation": None,
                 "schema_validation": None,
+                "identity_check": None,
             }
 
     return results

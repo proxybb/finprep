@@ -6,7 +6,7 @@
 <section class="page-header">
     <p class="eyebrow">Data preview</p>
     <h1>Cleaned Data Preview</h1>
-    <p class="page-header__copy">Mechanical cleaning and orientation normalization output. Balance Sheet label mapping and schema validation run when a Balance Sheet is uploaded; derivations and identity checks are not run yet.</p>
+    <p class="page-header__copy">Mechanical cleaning and orientation normalization output. Balance Sheet label mapping, schema validation, and identity checks run when a Balance Sheet is uploaded; derivations are not run yet.</p>
 </section>
 
 <section class="stage-summary" aria-label="Cleaning stage summary">
@@ -17,7 +17,7 @@
         ("Label mapping", "Balance Sheet only"),
         ("Schema validation", "Balance Sheet only"),
         ("Derivations", "Not implemented"),
-        ("Identity checks", "Not implemented")
+        ("Identity checks", "Balance Sheet only")
     ] %}
     {% for stage, status in stages %}
     <article class="stage-summary__item">
@@ -84,6 +84,15 @@
                                 {% endif %}
                                 {% if result.schema_validation.expected.missing %}
                                     <span>Missing expected detail: {{ result.schema_validation.expected.missing | join(', ') }}.</span>
+                                {% endif %}
+                            {% endif %}
+                            {% if result.identity_check %}
+                                {% if result.identity_check.ran and result.identity_check.passed %}
+                                    <span>Identity check passed.</span>
+                                {% elif result.identity_check.ran %}
+                                    <span>Identity check failed.</span>
+                                {% else %}
+                                    <span>Identity check skipped: {{ result.identity_check.skipped_reason }}.</span>
                                 {% endif %}
                             {% endif %}
                         </div>
