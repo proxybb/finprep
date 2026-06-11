@@ -49,7 +49,7 @@ def normalize_mapping_label(label: Any) -> str:
 def map_statement_rows(df: pd.DataFrame, statement_type: str) -> tuple[pd.DataFrame, list[dict]]:
     """Map cleaned statement rows to canonical metadata without changing values."""
     if statement_type != "balance_sheet":
-        raise ValueError("Only balance_sheet asset mapping is implemented in this step.")
+        raise ValueError("Only balance_sheet mapping is implemented in this step.")
     if len(df.columns) == 0:
         raise ValueError("Mapping requires a DataFrame with at least one label column.")
 
@@ -85,7 +85,11 @@ def _metadata_for_label(
 ) -> dict:
     rule = _SPECIAL_ASSET_RULES.get(normalized_label)
     if rule is None:
+        rule = _SPECIAL_LIABILITY_RULES.get(normalized_label)
+    if rule is None:
         rule = _AUTO_MAP_ASSET_RULES.get(normalized_label)
+    if rule is None:
+        rule = _AUTO_MAP_LIABILITY_RULES.get(normalized_label)
 
     if rule is None:
         rule = {
@@ -259,6 +263,77 @@ _AUTO_MAP_ASSET_RULES["total assets"] = _auto_rule(
     canonical_label="total_assets",
     display_label="Total Assets",
     concept_family="total_assets",
+    rollup_role="total",
+)
+
+_AUTO_MAP_LIABILITY_RULES = {
+    alias: _auto_rule(
+        alias=alias,
+        canonical_label="accounts_payable",
+        display_label="Accounts Payable",
+        concept_family="payables",
+        rollup_role="narrow",
+    )
+    for alias in (
+        "accounts payable",
+        "trade payables",
+        "trade payable",
+    )
+}
+
+_AUTO_MAP_LIABILITY_RULES["trade and other payables"] = _asset_rule(
+    mapping_status="review_only",
+    canonical_label="payables_total",
+    display_label="Trade and Other Payables",
+    matched_alias="trade and other payables",
+    matched_rule_kind="special_review",
+    concept_category="composite_label",
+    concept_family="payables",
+    rollup_role="composite",
+    review_reason="includes_other_payables",
+)
+
+_AUTO_MAP_LIABILITY_RULES.update(
+    {
+        alias: _asset_rule(
+            mapping_status="deferred",
+            canonical_label="accrued_expenses",
+            display_label="Accrued Expenses",
+            matched_alias=alias,
+            matched_rule_kind="special_review",
+            concept_category="deferred_canonical",
+            concept_family="accruals",
+            rollup_role="component",
+            review_reason="accrued_expenses_not_supported_in_analysis_yet",
+        )
+        for alias in (
+            "accrued expenses",
+            "accrued liabilities",
+        )
+    }
+)
+
+_AUTO_MAP_LIABILITY_RULES.update(
+    {
+        alias: _auto_rule(
+            alias=alias,
+            canonical_label="current_liabilities",
+            display_label="Current Liabilities",
+            concept_family="current_liabilities",
+            rollup_role="total",
+        )
+        for alias in (
+            "current liabilities",
+            "total current liabilities",
+        )
+    }
+)
+
+_AUTO_MAP_LIABILITY_RULES["total liabilities"] = _auto_rule(
+    alias="total liabilities",
+    canonical_label="total_liabilities",
+    display_label="Total Liabilities",
+    concept_family="total_liabilities",
     rollup_role="total",
 )
 
@@ -497,3 +572,260 @@ _SPECIAL_ASSET_RULES = {
         review_reason="other_non_current_assets_not_supported_yet",
     ),
 }
+
+_SPECIAL_LIABILITY_RULES = {
+    "accounts payable and accrued expenses": _asset_rule(
+        mapping_status="review_only",
+        canonical_label=None,
+        display_label="Accounts Payable and Accrued Expenses",
+        matched_alias="accounts payable and accrued expenses",
+        matched_rule_kind="special_review",
+        concept_category="composite_label",
+        concept_family="payables",
+        rollup_role="composite",
+        review_reason="combines_payables_and_accruals",
+    ),
+    "liabilities": _asset_rule(
+        mapping_status="unmapped",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="liabilities",
+        matched_rule_kind="special_review",
+        concept_category="broad_label",
+        concept_family="other_liabilities",
+        rollup_role="broad_unspecified",
+        review_reason="broad_liabilities_label",
+    ),
+    "other liabilities": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="other liabilities",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="other_liabilities",
+        rollup_role="component",
+        review_reason="other_liabilities_not_supported_yet",
+    ),
+    "other current liabilities": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="other current liabilities",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="current_liabilities",
+        rollup_role="component",
+        review_reason="other_current_liabilities_not_supported_yet",
+    ),
+    "other non current liabilities": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="other non current liabilities",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="other_liabilities",
+        rollup_role="component",
+        review_reason="other_non_current_liabilities_not_supported_yet",
+    ),
+    "borrowings": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="borrowings",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="debt_and_borrowings",
+        rollup_role="broad_unspecified",
+        review_reason="borrowings_not_supported_yet",
+    ),
+    "loans and borrowings": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="loans and borrowings",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="debt_and_borrowings",
+        rollup_role="broad_unspecified",
+        review_reason="borrowings_not_supported_yet",
+    ),
+    "lease liabilities": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="lease liabilities",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="lease_liabilities",
+        rollup_role="component",
+        review_reason="lease_liabilities_not_supported_yet",
+    ),
+    "current lease liabilities": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="current lease liabilities",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="lease_liabilities",
+        rollup_role="component",
+        review_reason="lease_liabilities_not_supported_yet",
+    ),
+    "non current lease liabilities": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="non current lease liabilities",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="lease_liabilities",
+        rollup_role="component",
+        review_reason="lease_liabilities_not_supported_yet",
+    ),
+    "provisions": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="provisions",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="provisions",
+        rollup_role="broad_unspecified",
+        review_reason="provisions_not_supported_yet",
+    ),
+    "current provisions": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="current provisions",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="provisions",
+        rollup_role="component",
+        review_reason="provisions_not_supported_yet",
+    ),
+    "non current provisions": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="non current provisions",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="provisions",
+        rollup_role="component",
+        review_reason="provisions_not_supported_yet",
+    ),
+    "income taxes payable": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="income taxes payable",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="tax_liabilities",
+        rollup_role="component",
+        review_reason="tax_liabilities_not_supported_yet",
+    ),
+    "tax liabilities": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="tax liabilities",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="tax_liabilities",
+        rollup_role="component",
+        review_reason="tax_liabilities_not_supported_yet",
+    ),
+    "deferred tax liabilities": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="deferred tax liabilities",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="tax_liabilities",
+        rollup_role="component",
+        review_reason="deferred_tax_liabilities_not_supported_yet",
+    ),
+    "deferred revenue": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="deferred revenue",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="deferred_revenue",
+        rollup_role="component",
+        review_reason="deferred_revenue_not_supported_yet",
+    ),
+    "contract liabilities": _asset_rule(
+        mapping_status="deferred",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="contract liabilities",
+        matched_rule_kind="special_review",
+        concept_category="deferred_canonical",
+        concept_family="deferred_revenue",
+        rollup_role="component",
+        review_reason="contract_liabilities_not_supported_yet",
+    ),
+    "total liabilities and equity": _asset_rule(
+        mapping_status="review_only",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="total liabilities and equity",
+        matched_rule_kind="special_review",
+        concept_category="composite_label",
+        concept_family="total_liabilities",
+        rollup_role="composite",
+        review_reason="accounting_equation_total_not_liabilities_only",
+    ),
+    "total liabilities and shareholders equity": _asset_rule(
+        mapping_status="review_only",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="total liabilities and shareholders equity",
+        matched_rule_kind="special_review",
+        concept_category="composite_label",
+        concept_family="total_liabilities",
+        rollup_role="composite",
+        review_reason="accounting_equation_total_not_liabilities_only",
+    ),
+    "total liabilities and stockholders equity": _asset_rule(
+        mapping_status="review_only",
+        canonical_label=None,
+        display_label=None,
+        matched_alias="total liabilities and stockholders equity",
+        matched_rule_kind="special_review",
+        concept_category="composite_label",
+        concept_family="total_liabilities",
+        rollup_role="composite",
+        review_reason="accounting_equation_total_not_liabilities_only",
+    ),
+}
+
+_SPECIAL_LIABILITY_RULES.update(
+    {
+        alias: _asset_rule(
+            mapping_status="deferred",
+            canonical_label=None,
+            display_label=None,
+            matched_alias=alias,
+            matched_rule_kind="special_review",
+            concept_category="deferred_canonical",
+            concept_family="debt_and_borrowings",
+            rollup_role=rollup_role,
+            review_reason="debt_not_supported_yet",
+        )
+        for alias, rollup_role in (
+            ("short term debt", "component"),
+            ("current debt", "component"),
+            ("current portion of long term debt", "component"),
+            ("long term debt", "component"),
+            ("total debt", "total"),
+        )
+    }
+)

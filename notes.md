@@ -865,3 +865,57 @@ validation, derivations, identity checks, rollups, or persistence.
 Review the Balance Sheet Assets mapping rules against representative uploads,
 then implement the next scoped mapping slice separately without wiring mapping
 into routes until the backend contract is accepted.
+
+## 25. Stage 4A-2 Balance Sheet Liabilities mapping backend
+
+### What changed
+
+Backend-only deterministic label mapping was extended from Balance Sheet Assets
+to include Balance Sheet Liabilities. The existing public mapper and metadata
+contract were preserved.
+
+### Files touched
+
+- `cleaning/mapping.py`
+- `tests/test_mapping.py`
+- `notes.md`
+
+### Why it changed
+
+This adds the next Balance Sheet mapping slice without implementing equity,
+income statement mapping, cash flow mapping, route wiring, UI changes,
+validation, derivations, identity checks, rollups, or persistence.
+
+### Current behavior
+
+- `map_statement_rows(df, statement_type)` still supports only
+  `balance_sheet`.
+- The mapper still copies input DataFrames, uses the first column as the label
+  column, preserves original labels, preserves period values, keeps row order,
+  and does not drop or deduplicate rows.
+- Liability aliases now map or tag metadata for `accounts_payable`,
+  `payables_total`, `accrued_expenses`, `current_liabilities`, and
+  `total_liabilities`.
+- Broader or composite payable labels are marked `review_only`.
+- Accrual labels are marked `deferred` while carrying `accrued_expenses`
+  canonical metadata for future analysis.
+- Debt, leases, provisions, tax liabilities, deferred revenue, and contract
+  liabilities are deferred and not included as primary liability canonicals.
+- Accounting-equation totals such as total liabilities and equity are marked
+  `review_only` and are not mapped to `total_liabilities`.
+- Matching remains exact after deterministic label normalization only.
+
+### Known limitations
+
+- Equity mapping is not implemented.
+- Income statement and cash flow mapping are not implemented.
+- Mapping is still not wired into Flask routes or the cleaned preview pipeline.
+- Schema validation, derivations, identity checks, rollups, and SQL persistence
+  are not implemented.
+- No fuzzy matching or synonym inference exists.
+
+### Next suggested step
+
+Review the combined Balance Sheet Assets and Liabilities mapping rules against
+representative uploads, then implement Balance Sheet Equity mapping as the next
+separate backend-only slice.
