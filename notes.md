@@ -1071,3 +1071,75 @@ identity, derivation, rollup, or persistence work.
 Review Balance Sheet cleaned previews with representative uploads, then decide
 whether to add a review-oriented display for mapping metadata or keep the next
 step backend-only.
+
+## 29. Balance Sheet schema validation backend
+
+### What changed
+
+Backend-only Balance Sheet schema validation was added after Balance Sheet
+mapping in the cleaned preview flow. The validator reports whether mapped
+Balance Sheet rows are ready for a later accounting identity check, and whether
+expected working-capital detail is present.
+
+### Files touched
+
+- `cleaning/schema.py`
+- `tests/test_schema.py`
+- `web/routes.py`
+- `web/templates/cleaned_data.html`
+- `tests/test_routes.py`
+- `notes.md`
+
+### Why it changed
+
+Mapping identifies canonical Balance Sheet rows, but the app also needs a
+separate backend check for whether required identity inputs exist before any
+future identity calculation is attempted. This validation step does not perform
+the identity check, derive values, roll up rows, or persist data.
+
+### Current behavior
+
+- `validate_balance_sheet_schema(mapped_df)` returns a serializable dictionary
+  with `statement_type`, `identity_ready`, required field status, expected
+  field status, warnings, and review candidates.
+- `/data/cleaned` runs Balance Sheet schema validation only after Balance Sheet
+  mapping.
+- Income Statement and Cash Flow cleaned previews do not run mapping or schema
+  validation.
+- The cleaned page shows a compact Balance Sheet schema status when validation
+  has run.
+- Raw preview behavior is unchanged.
+
+### Validation rules
+
+- Required identity-readiness fields are `total_assets`, `total_liabilities`,
+  and `total_equity`.
+- Required fields are satisfied only by rows where
+  `mapping_status == "auto_mapped"`.
+- Review-only, conditional, deferred, and unmapped rows do not satisfy required
+  identity readiness.
+- Expected working-capital detail checks include `current_assets`,
+  `current_liabilities`, `cash_and_equivalents`, receivables detail,
+  `inventory`, and payables detail.
+- Receivables detail is satisfied by `accounts_receivable` or
+  `receivables_total`.
+- Payables detail is satisfied by `accounts_payable` or `payables_total`.
+- Missing required fields produce error-level warnings and make
+  `identity_ready` false.
+- Missing expected fields produce warning-level messages only.
+- Review-only candidates for missing required fields are reported but do not
+  satisfy the missing field.
+
+### Known limitations
+
+- No accounting identity calculation is performed.
+- No schema validation exists yet for Income Statement or Cash Flow Statement.
+- No derivations, rollups, identity checks, or SQL persistence are implemented.
+- Schema status is displayed minimally in the cleaned preview; detailed
+  validation review UX is still deferred.
+
+### Next suggested step
+
+Review Balance Sheet schema validation output with representative uploads, then
+decide whether to add a dedicated analyst review view for mapping and schema
+issues or keep the next step backend-only.

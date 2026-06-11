@@ -14,6 +14,7 @@ from cleaning.ingest import IngestionError, read_uploaded_file
 from cleaning.mapping import map_statement_rows
 from cleaning.mechanical import run_mechanical_cleaning
 from cleaning.orientation import normalize_orientation
+from cleaning.schema import validate_balance_sheet_schema
 from cleaning.table_boundary import normalize_table_boundary
 
 
@@ -250,8 +251,10 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
             boundary_result = normalize_table_boundary(cleaned_df)
             orientation_result = normalize_orientation(boundary_result.dataframe)
             preview_df = orientation_result.dataframe
+            schema_validation = None
             if statement["field_name"] == "balance_sheet":
                 preview_df, _mapping_audit = map_statement_rows(preview_df, "balance_sheet")
+                schema_validation = validate_balance_sheet_schema(preview_df)
 
             results[statement["key"]] = {
                 "filename": metadata_entry["filename"],
@@ -267,6 +270,7 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
                     "confidence": orientation_result.confidence,
                     "message": orientation_result.message,
                 },
+                "schema_validation": schema_validation,
             }
         except (IngestionError, OSError, KeyError, ValueError) as exc:
             results[statement["key"]] = {
@@ -274,6 +278,7 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
                 "error": str(exc),
                 "table": None,
                 "orientation": None,
+                "schema_validation": None,
             }
 
     return results

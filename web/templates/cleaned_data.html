@@ -6,7 +6,7 @@
 <section class="page-header">
     <p class="eyebrow">Data preview</p>
     <h1>Cleaned Data Preview</h1>
-    <p class="page-header__copy">Mechanical cleaning and orientation normalization output. Balance Sheet label mapping runs when a Balance Sheet is uploaded; schema validation, derivations, and identity checks are not run yet.</p>
+    <p class="page-header__copy">Mechanical cleaning and orientation normalization output. Balance Sheet label mapping and schema validation run when a Balance Sheet is uploaded; derivations and identity checks are not run yet.</p>
 </section>
 
 <section class="stage-summary" aria-label="Cleaning stage summary">
@@ -14,8 +14,8 @@
         ("Mechanical cleaning", "Runs now"),
         ("Table-boundary cleanup", "Runs now"),
         ("Orientation detection", "Runs now"),
-        ("Schema validation", "Not implemented"),
         ("Label mapping", "Balance Sheet only"),
+        ("Schema validation", "Balance Sheet only"),
         ("Derivations", "Not implemented"),
         ("Identity checks", "Not implemented")
     ] %}
@@ -75,6 +75,16 @@
                             <span>Mechanical cleaning applied.</span>
                             {% if result.orientation %}
                                 <span>{{ result.orientation.message }}</span>
+                            {% endif %}
+                            {% if result.schema_validation %}
+                                {% if result.schema_validation.identity_ready %}
+                                    <span>Balance Sheet schema identity-ready.</span>
+                                {% else %}
+                                    <span>Balance Sheet schema not identity-ready. Missing required: {{ result.schema_validation.required.missing | join(', ') }}.</span>
+                                {% endif %}
+                                {% if result.schema_validation.expected.missing %}
+                                    <span>Missing expected detail: {{ result.schema_validation.expected.missing | join(', ') }}.</span>
+                                {% endif %}
                             {% endif %}
                         </div>
 

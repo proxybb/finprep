@@ -44,6 +44,15 @@ def _balance_sheet_mapping_csv() -> BytesIO:
     )
 
 
+def _balance_sheet_missing_equity_csv() -> BytesIO:
+    return BytesIO(
+        b"Line Item,2022,2023\n"
+        b'Total Assets,"$5,000","$5,500"\n'
+        b'Total Liabilities,"$3,000","$3,300"\n'
+        b'Inventory,"$700","$750"\n'
+    )
+
+
 def test_existing_routes_return_200():
     client = _client()
 
@@ -405,6 +414,7 @@ def test_balance_sheet_cleaned_preview_applies_mapping_metadata():
     assert "total_assets" in html
     assert "total_liabilities" in html
     assert "total_equity" in html
+    assert "Balance Sheet schema identity-ready." in html
     assert "5000" in html
     assert "5500" in html
     assert "3000" in html
@@ -526,6 +536,30 @@ def test_balance_sheet_mapping_error_shows_clean_error(monkeypatch):
     assert "balance-error.csv" in html
     assert "cleaning unavailable" in html
     assert "Mapping failed cleanly." in html
+
+
+def test_balance_sheet_cleaned_preview_shows_missing_required_schema_status():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={"balance_sheet": (_balance_sheet_missing_equity_csv(), "balance-missing.csv")},
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "balance-missing.csv" in html
+    assert "Balance Sheet schema not identity-ready." in html
+    assert "Missing required: total_equity." in html
+    assert "total_assets" in html
+    assert "total_liabilities" in html
+    assert "inventory" in html
+    assert "5500" in html
+    assert "3300" in html
 
 
 def test_cleaned_data_with_no_current_upload_shows_empty_state():
