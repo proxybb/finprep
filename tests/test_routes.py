@@ -26,6 +26,15 @@ def _xlsx_file() -> BytesIO:
     return file
 
 
+def _csv_file(label: bytes = b"Cash") -> BytesIO:
+    return BytesIO(
+        b"Line Item,2022,2023\n"
+        + label
+        + b',"$1,000","$1,100"\n'
+        + b'Total Assets,"$5,000","$5,500"\n'
+    )
+
+
 def test_existing_routes_return_200():
     client = _client()
 
@@ -93,6 +102,107 @@ def test_uploading_xlsx_for_one_statement_shows_raw_preview():
     assert "Total Assets" in html
 
 
+def test_uploading_only_balance_sheet_succeeds_and_missing_slots_do_not_error():
+    client = _client()
+
+    response = client.post(
+        "/data/upload",
+        data={"balance_sheet": (_csv_file(), "balance.csv")},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "balance.csv" in html
+    assert "Balance Sheet raw preview" in html
+    assert "2 rows x 3 columns" in html
+    assert "$1,000" in html
+    assert "Unsupported file type" not in html
+    assert "The uploaded file is empty." not in html
+    assert "Income Statement raw preview" in html
+    assert "Cash Flow Statement raw preview" in html
+    assert "No upload preview available." in html
+
+
+def test_uploading_only_balance_sheet_then_cleaned_preview_succeeds():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={"balance_sheet": (_csv_file(), "balance.csv")},
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "Cleaned Data Preview" in html
+    assert "balance.csv" in html
+    assert "2 rows x 3 columns" in html
+    assert "Mechanical cleaning applied." in html
+    assert "Balance Sheet cleaned preview" in html
+    assert "Income Statement cleaned preview" in html
+    assert "No uploaded file for Income Statement." in html
+    assert "No uploaded file for Cash Flow Statement." in html
+    assert "1000" in html
+    assert "$1,000" not in html
+
+
+def test_uploading_only_cash_flow_statement_succeeds():
+    response = _client().post(
+        "/data/upload",
+        data={"cash_flow_statement": (_csv_file(b"Operating Cash Flow"), "cash-flow.csv")},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "cash-flow.csv" in html
+    assert "Cash Flow Statement raw preview" in html
+    assert "Operating Cash Flow" in html
+    assert "Unsupported file type" not in html
+
+
+def test_upload_with_no_files_leaves_no_upload_state():
+    client = _client()
+
+    response = client.post(
+        "/data/upload",
+        data={},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "Upload and Raw Preview" in html
+    assert "No upload preview available." in html
+    assert "Unsupported file type" not in html
+    with client.session_transaction() as session:
+        assert session.get("current_upload_id") is None
+
+
+def test_uploading_all_three_statements_still_shows_raw_previews():
+    response = _client().post(
+        "/data/upload",
+        data={
+            "income_statement": (_csv_file(b"Revenue"), "income.csv"),
+            "balance_sheet": (_csv_file(b"Cash"), "balance.csv"),
+            "cash_flow_statement": (_csv_file(b"Operating Cash Flow"), "cash-flow.csv"),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "income.csv" in html
+    assert "balance.csv" in html
+    assert "cash-flow.csv" in html
+    assert html.count("2 rows x 3 columns") == 3
+    assert "Unsupported file type" not in html
+
+
 def test_unsupported_upload_type_shows_clean_error():
     response = _client().post(
         "/data/upload",
@@ -104,6 +214,24 @@ def test_unsupported_upload_type_shows_clean_error():
     html = response.get_data(as_text=True)
     assert "cash.txt" in html
     assert "Unsupported file type. Please upload a CSV or Excel file." in html
+
+
+def test_one_valid_file_with_unsupported_file_errors_only_uploaded_bad_slot():
+    response = _client().post(
+        "/data/upload",
+        data={
+            "balance_sheet": (_csv_file(), "balance.csv"),
+            "cash_flow_statement": (BytesIO(b"not supported"), "cash.txt"),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "balance.csv" in html
+    assert "cash.txt" in html
+    assert "Unsupported file type. Please upload a CSV or Excel file." in html
+    assert "No upload preview available." in html
 
 
 def test_clean_data_uses_temporary_upload_and_runs_mechanical_cleaning():

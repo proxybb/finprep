@@ -972,3 +972,52 @@ Review representative Balance Sheet uploads against the combined asset,
 liability, and equity mappings, then decide whether to wire Balance Sheet
 mapping into an internal backend pipeline step or implement the next statement
 mapping slice separately.
+
+## 27. Single-statement upload workflow verification
+
+### What changed
+
+Route tests were expanded to lock the existing behavior that one uploaded
+statement is enough for upload/raw preview and cleaned preview workflows.
+
+### Files touched
+
+- `tests/test_routes.py`
+- `notes.md`
+
+### Why it changed
+
+Users need to be able to upload only one statement, especially a Balance Sheet,
+without being blocked by missing Income Statement or Cash Flow Statement files.
+The route implementation already skipped missing upload slots and processed
+only saved uploaded statements, so no route or template changes were needed.
+
+### Current behavior
+
+- `/data/upload` accepts only Income Statement, only Balance Sheet, only Cash
+  Flow Statement, or any combination of those files.
+- Missing statement slots are ignored during ingestion and are shown as neutral
+  empty preview states.
+- At least one valid uploaded file creates temporary upload metadata for the
+  current session.
+- Posting no files leaves the page in the no-upload preview state and does not
+  create a current upload id.
+- `/data/cleaned` runs the existing pipeline only for uploaded statements:
+  ingestion, mechanical cleaning, table-boundary cleanup, and orientation
+  detection.
+- Unsupported uploaded files still show clean ingestion errors for the affected
+  statement slot.
+- Raw preview remains raw and label mapping is still not wired into routes.
+
+### Known limitations
+
+- Cleaned preview still shows neutral empty tabs for missing statements.
+- Temporary uploaded files are still working-session files only.
+- Mapping, schema validation, derivations, identity checks, rollups, and SQL
+  persistence are still not wired into the workflow.
+
+### Next suggested step
+
+Review the single-statement workflow manually with representative Balance Sheet
+uploads, then decide whether the next backend step should wire Balance Sheet
+mapping internally or keep expanding statement mapping coverage first.
