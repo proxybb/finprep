@@ -97,6 +97,26 @@
                             {% endif %}
                         </div>
 
+                        {% if result.schema_validation and result.schema_validation.candidates %}
+                            <div class="empty-state empty-state--error">
+                                <strong>Review needed</strong>
+                                {% for candidate in result.schema_validation.candidates %}
+                                    {% set candidate_label = candidate.display_label or candidate.original_label %}
+                                    {% set approved_label = candidate.missing_required | replace('_', ' ') | title %}
+                                    <span>{{ candidate_label }} may be used as {{ approved_label }}.</span>
+                                    {% if candidate.review_message %}
+                                        <span>{{ candidate.review_message }}</span>
+                                    {% endif %}
+                                    <form method="post" action="{{ url_for('web.approve_balance_sheet_review_candidate') }}">
+                                        <input type="hidden" name="statement_type" value="balance_sheet">
+                                        <input type="hidden" name="row_position" value="{{ candidate.row_position }}">
+                                        <input type="hidden" name="canonical_label" value="{{ candidate.missing_required }}">
+                                        <button class="secondary-button" type="submit">Approve as {{ approved_label }}</button>
+                                    </form>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
                         <div class="table-wrap table-wrap--compact">
                             <table class="data-table">
                                 <thead>

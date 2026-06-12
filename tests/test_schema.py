@@ -13,12 +13,16 @@ def _row(
     original_label=None,
     concept_family=None,
     review_reason=None,
+    row_position=None,
+    display_label=None,
 ):
     return {
         "original_label": original_label or canonical_label or "source label",
         "normalized_label": original_label or canonical_label or "source label",
+        "row_position": row_position,
         "mapping_status": mapping_status,
         "canonical_label": canonical_label,
+        "display_label": display_label,
         "concept_family": concept_family,
         "review_reason": review_reason,
     }
@@ -75,6 +79,8 @@ def test_review_only_owner_equity_does_not_satisfy_total_equity():
                     original_label="shareholders equity",
                     concept_family="owner_equity",
                     review_reason="owner_only_equity_may_exclude_non_controlling_interests",
+                    row_position=2,
+                    display_label="Shareholders Equity",
                 ),
             ]
         )
@@ -87,10 +93,13 @@ def test_review_only_owner_equity_does_not_satisfy_total_equity():
             "missing_required": "total_equity",
             "original_label": "shareholders equity",
             "normalized_label": "shareholders equity",
+            "row_position": 2,
             "canonical_label": None,
+            "display_label": "Shareholders Equity",
             "concept_family": "owner_equity",
             "mapping_status": "review_only",
             "review_reason": "owner_only_equity_may_exclude_non_controlling_interests",
+            "review_message": "Owner-only equity may exclude non-controlling interests.",
         }
     ]
     assert any(
@@ -199,6 +208,27 @@ def test_review_only_total_like_rows_do_not_satisfy_required_fields():
     assert result["identity_ready"] is False
     assert "total_equity" in result["required"]["missing"]
     assert "total_equity" not in result["required"]["present"]
+
+
+def test_user_approved_required_field_satisfies_schema_readiness():
+    result = validate_balance_sheet_schema(
+        _mapped_df(
+            [
+                _row("total_assets"),
+                _row("total_liabilities"),
+                _row(
+                    "total_equity",
+                    mapping_status="user_approved",
+                    original_label="stockholders equity",
+                    concept_family="owner_equity",
+                ),
+            ]
+        )
+    )
+
+    assert result["identity_ready"] is True
+    assert "total_equity" in result["required"]["present"]
+    assert result["required"]["missing"] == []
 
 
 def test_missing_mapping_metadata_columns_return_clean_validation_result():

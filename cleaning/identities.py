@@ -17,6 +17,7 @@ BALANCE_SHEET_IDENTITY_FIELDS = [
     "total_liabilities",
     "total_equity",
 ]
+TRUSTED_BALANCE_SHEET_IDENTITY_STATUSES = {"auto_mapped", "user_approved"}
 NON_PERIOD_COLUMNS = set(MAPPING_METADATA_COLUMNS) | {
     "line_item",
     "label",
@@ -54,7 +55,7 @@ def check_balance_sheet_identity(
         )
 
     strict_rows = mapped_df[
-        (mapped_df["mapping_status"] == "auto_mapped")
+        (mapped_df["mapping_status"].isin(TRUSTED_BALANCE_SHEET_IDENTITY_STATUSES))
         & (mapped_df["canonical_label"].isin(BALANCE_SHEET_IDENTITY_FIELDS))
     ]
 
@@ -68,10 +69,10 @@ def check_balance_sheet_identity(
                 {
                     "code": "duplicate_canonical_rows",
                     "canonical_label": label,
-                    "message": f"Duplicate auto-mapped rows found for {label}.",
+                    "message": f"Duplicate trusted rows found for {label}.",
                 }
             )
-            return _skipped_result(result, f"duplicate auto-mapped rows for {label}")
+            return _skipped_result(result, f"duplicate trusted rows for {label}")
         rows_by_label[label] = matching.iloc[0]
 
     period_columns = _period_columns(mapped_df, rows_by_label)

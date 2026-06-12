@@ -32,6 +32,8 @@ BALANCE_SHEET_EXPECTED_GROUPS = {
 }
 
 REQUIRED_METADATA_COLUMNS = {"canonical_label", "mapping_status"}
+TRUSTED_REQUIRED_MAPPING_STATUSES = {"auto_mapped", "user_approved"}
+EXPECTED_MAPPING_STATUSES = TRUSTED_REQUIRED_MAPPING_STATUSES | {"review_only"}
 
 
 def validate_balance_sheet_schema(mapped_df: pd.DataFrame) -> dict[str, Any]:
@@ -40,17 +42,20 @@ def validate_balance_sheet_schema(mapped_df: pd.DataFrame) -> dict[str, Any]:
     if missing_metadata:
         return _metadata_missing_result(missing_metadata)
 
-    auto_mapped_labels = _canonical_labels_for_status(mapped_df, {"auto_mapped"})
+    trusted_required_labels = _canonical_labels_for_status(
+        mapped_df,
+        TRUSTED_REQUIRED_MAPPING_STATUSES,
+    )
     expected_candidate_labels = _canonical_labels_for_status(
         mapped_df,
-        {"auto_mapped", "review_only"},
+        EXPECTED_MAPPING_STATUSES,
     )
 
     required_present = [
-        field for field in REQUIRED_BALANCE_SHEET_FIELDS if field in auto_mapped_labels
+        field for field in REQUIRED_BALANCE_SHEET_FIELDS if field in trusted_required_labels
     ]
     required_missing = [
-        field for field in REQUIRED_BALANCE_SHEET_FIELDS if field not in auto_mapped_labels
+        field for field in REQUIRED_BALANCE_SHEET_FIELDS if field not in trusted_required_labels
     ]
 
     expected_present = [
@@ -171,10 +176,13 @@ def _review_candidates_for_missing_required(
                 "missing_required": missing_required,
                 "original_label": _none_if_missing(row.get("original_label")),
                 "normalized_label": _none_if_missing(row.get("normalized_label")),
+                "row_position": _none_if_missing(row.get("row_position")),
                 "canonical_label": _none_if_missing(row.get("canonical_label")),
+                "display_label": _none_if_missing(row.get("display_label")),
                 "concept_family": _none_if_missing(row.get("concept_family")),
                 "mapping_status": _none_if_missing(row.get("mapping_status")),
                 "review_reason": _none_if_missing(row.get("review_reason")),
+                "review_message": _review_reason_message(row.get("review_reason")),
             }
         )
 
@@ -206,3 +214,12 @@ def _none_if_missing(value: Any) -> Any:
     except TypeError:
         pass
     return value
+
+
+def _review_reason_message(reason: Any) -> str | None:
+    reason = _none_if_missing(reason)
+    if reason == "owner_only_equity_may_exclude_non_controlling_interests":
+        return "Owner-only equity may exclude non-controlling interests."
+    if reason is None:
+        return None
+    return str(reason).replace("_", " ").capitalize() + "."

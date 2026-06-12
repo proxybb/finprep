@@ -1333,3 +1333,86 @@ presenting a cleaner table to users.
 
 Design the analyst review gate for `review_only`, `deferred`, unmapped, and
 duplicate canonical rows before any approval or persistence workflow is added.
+
+## 33. Lightweight Balance Sheet approval flow
+
+### What changed
+
+A narrow user approval flow was added for Balance Sheet review-only candidates
+that can satisfy missing required schema fields. The first supported workflow
+allows a user to approve owner-only equity labels, such as Stockholders Equity,
+as `total_equity` when appropriate.
+
+### Files touched
+
+- `cleaning/approvals.py`
+- `cleaning/schema.py`
+- `cleaning/identities.py`
+- `web/routes.py`
+- `web/templates/cleaned_data.html`
+- `tests/test_approvals.py`
+- `tests/test_schema.py`
+- `tests/test_identities.py`
+- `tests/test_routes.py`
+- `notes.md`
+
+### Why it changed
+
+Some real Balance Sheets use labels like Stockholders Equity or Shareholders
+Equity. These remain `review_only` by default because they may exclude
+non-controlling interests, but users need a minimal way to approve the row when
+they know it is appropriate for the uploaded statement.
+
+### Current behavior
+
+- Schema validation still blocks identity readiness when required fields are
+  missing.
+- When a missing required field has a review-only candidate, the cleaned
+  Balance Sheet page shows a compact review panel.
+- The panel shows the candidate label, suggested canonical field, review
+  reason, and an approve button.
+- `POST /data/review/approve` records the approval for the current temp upload.
+- The cleaned flow reruns from the uploaded file, applies approvals after
+  mapping, then runs schema validation and identity checks.
+- Approved rows remain visible in the cleaned table through the existing
+  display DataFrame, without exposing the metadata table.
+- Income Statement and Cash Flow remain unmapped and unaffected.
+
+### Approval rules
+
+- Approval state is scoped to the current upload metadata under
+  `data/temp_uploads/<upload_id>/metadata.json`.
+- Approval payloads identify the Balance Sheet row by `row_position` and the
+  approved required canonical label.
+- Only required Balance Sheet fields can be approved:
+  `total_assets`, `total_liabilities`, and `total_equity`.
+- An approval is applied only to a single matching `review_only` row.
+- For `total_equity`, eligible candidates include rows with concept family
+  `owner_equity` or `total_equity`.
+- Invalid row positions, invalid canonical labels, missing uploads, and
+  non-Balance Sheet approval requests are ignored safely.
+- Clearing uploaded data removes the temp upload directory and therefore clears
+  approval state.
+
+### What `user_approved` means
+
+`user_approved` means the mapping was not trusted automatically, but the user
+accepted it for the current upload. Schema validation now treats
+`auto_mapped` and `user_approved` rows as trusted for required fields. Balance
+Sheet identity checks also use `auto_mapped` and `user_approved` canonical
+rows. `review_only`, `deferred`, and `unmapped` rows remain excluded.
+
+### Known limitations
+
+- This is not a full analyst review gate.
+- Approvals are temporary upload/session state, not SQL persistence.
+- There is no free-form mapping editor or arbitrary text editing.
+- The UI only supports approving schema-blocking candidates surfaced by schema
+  validation.
+- Duplicate canonical conflict resolution remains deferred.
+
+### Next suggested step
+
+Expand the review gate design to include duplicate trusted rows, deferred
+canonicals, unmapped rows, and a clear approval audit before adding permanent
+SQL persistence.

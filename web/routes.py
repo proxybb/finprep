@@ -11,12 +11,13 @@ import pandas as pd
 from flask import Blueprint, redirect, render_template, request, session, url_for
 from werkzeug.utils import secure_filename
 
+from cleaning.approvals import apply_balance_sheet_approvals
 from cleaning.ingest import IngestionError, read_uploaded_file
 from cleaning.identities import check_balance_sheet_identity
 from cleaning.mapping import MAPPING_METADATA_COLUMNS, map_statement_rows
 from cleaning.mechanical import run_mechanical_cleaning
 from cleaning.orientation import normalize_orientation
-from cleaning.schema import validate_balance_sheet_schema
+from cleaning.schema import REQUIRED_BALANCE_SHEET_FIELDS, validate_balance_sheet_schema
 from cleaning.table_boundary import normalize_table_boundary
 
 
@@ -25,6 +26,7 @@ bp = Blueprint("web", __name__)
 PREVIEW_ROW_LIMIT = 50
 TEMP_UPLOAD_ROOT = Path("data/temp_uploads")
 UPLOAD_METADATA_FILENAME = "metadata.json"
+BALANCE_SHEET_APPROVAL_KEY = "balance_sheet"
 STATEMENTS = [
     {
         "key": "income",
@@ -102,6 +104,48 @@ def _clear_upload_state(upload_id: str | None) -> None:
 
     if upload_dir.is_dir():
         shutil.rmtree(upload_dir)
+
+
+def _balance_sheet_approvals(metadata: dict) -> list[dict[str, Any]]:
+    approvals = metadata.get("approvals", {}).get(BALANCE_SHEET_APPROVAL_KEY, [])
+    if isinstance(approvals, list):
+        return approvals
+    return []
+
+
+def _store_balance_sheet_approval(
+    upload_id: str | None,
+    row_position: Any,
+    canonical_label: Any,
+) -> None:
+    if not upload_id:
+        return
+    metadata = _load_upload_metadata(upload_id)
+    if not metadata.get("statements", {}).get("balance"):
+        return
+
+    try:
+        parsed_row_position = int(row_position)
+    except (TypeError, ValueError):
+        return
+    if parsed_row_position < 0 or canonical_label not in REQUIRED_BALANCE_SHEET_FIELDS:
+        return
+
+    approvals = metadata.setdefault("approvals", {}).setdefault(
+        BALANCE_SHEET_APPROVAL_KEY,
+        [],
+    )
+    approval = {
+        "row_position": parsed_row_position,
+        "canonical_label": canonical_label,
+    }
+    approvals[:] = [
+        existing
+        for existing in approvals
+        if existing.get("row_position") != parsed_row_position
+    ]
+    approvals.append(approval)
+    _save_upload_metadata(upload_id, metadata)
 
 
 def _save_uploaded_file(upload_id: str, statement: dict, uploaded_file) -> dict:
@@ -315,6 +359,10 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
             display_df = preview_df
             if statement["field_name"] == "balance_sheet":
                 preview_df, _mapping_audit = map_statement_rows(preview_df, "balance_sheet")
+                preview_df = apply_balance_sheet_approvals(
+                    preview_df,
+                    _balance_sheet_approvals(metadata),
+                )
                 schema_validation = validate_balance_sheet_schema(preview_df)
                 identity_check = check_balance_sheet_identity(preview_df, schema_validation)
                 display_df = _balance_sheet_display_df(preview_df)
@@ -382,6 +430,18 @@ def clear_uploaded_data():
     """Clear the current temporary upload state and return to data intake."""
     _clear_upload_state(session.get("current_upload_id"))
     return redirect(url_for("web.data"))
+
+
+@bp.route("/data/review/approve", methods=["POST"])
+def approve_balance_sheet_review_candidate():
+    """Approve a narrow Balance Sheet review candidate for the current upload."""
+    if request.form.get("statement_type") == "balance_sheet":
+        _store_balance_sheet_approval(
+            session.get("current_upload_id"),
+            request.form.get("row_position"),
+            request.form.get("canonical_label"),
+        )
+    return redirect(url_for("web.cleaned_data"))
 
 
 @bp.route("/data/cleaned")

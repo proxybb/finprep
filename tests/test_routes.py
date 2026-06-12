@@ -73,6 +73,17 @@ def _balance_sheet_failing_identity_csv() -> BytesIO:
     )
 
 
+def _balance_sheet_stockholders_equity_csv(equity_value: int = 600) -> BytesIO:
+    return BytesIO(
+        (
+            "Line Item,2023\n"
+            'Total Assets,"$1,000"\n'
+            'Total Liabilities,"$400"\n'
+            f'Stockholders Equity,"${equity_value}"\n'
+        ).encode("utf-8")
+    )
+
+
 def test_existing_routes_return_200():
     client = _client()
 
@@ -816,6 +827,239 @@ def test_balance_sheet_cleaned_preview_shows_failing_identity_status():
     assert "balance-fail.csv" in html
     assert "Balance Sheet schema identity-ready." in html
     assert "Identity check failed." in html
+
+
+def test_balance_sheet_review_panel_shows_required_field_candidate():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={
+            "balance_sheet": (
+                _balance_sheet_stockholders_equity_csv(),
+                "stockholders.csv",
+            )
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "stockholders.csv" in html
+    assert "Balance Sheet schema not identity-ready." in html
+    assert "Missing required: total_equity." in html
+    assert "Review needed" in html
+    assert "Stockholders Equity may be used as Total Equity." in html
+    assert "Owner-only equity may exclude non-controlling interests." in html
+    assert "Approve as Total Equity" in html
+    assert 'name="row_position" value="2"' in html
+
+
+def test_approving_stockholders_equity_reruns_schema_and_identity():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={
+            "balance_sheet": (
+                _balance_sheet_stockholders_equity_csv(),
+                "stockholders-pass.csv",
+            )
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    approve_response = client.post(
+        "/data/review/approve",
+        data={
+            "statement_type": "balance_sheet",
+            "row_position": "2",
+            "canonical_label": "total_equity",
+        },
+    )
+
+    assert approve_response.status_code == 302
+    assert approve_response.headers["Location"].endswith("/data/cleaned")
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "stockholders-pass.csv" in html
+    assert "Balance Sheet schema identity-ready." in html
+    assert "Identity check passed." in html
+    assert "Approve as Total Equity" not in html
+    assert "Total Equity" in html
+    assert "total_equity" not in html
+
+
+def test_approved_stockholders_equity_can_fail_identity():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={
+            "balance_sheet": (
+                _balance_sheet_stockholders_equity_csv(equity_value=500),
+                "stockholders-fail.csv",
+            )
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    approve_response = client.post(
+        "/data/review/approve",
+        data={
+            "statement_type": "balance_sheet",
+            "row_position": "2",
+            "canonical_label": "total_equity",
+        },
+    )
+    assert approve_response.status_code == 302
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "stockholders-fail.csv" in html
+    assert "Balance Sheet schema identity-ready." in html
+    assert "Identity check failed." in html
+
+
+def test_approval_route_is_safe_without_upload():
+    response = _client().post(
+        "/data/review/approve",
+        data={
+            "statement_type": "balance_sheet",
+            "row_position": "2",
+            "canonical_label": "total_equity",
+        },
+    )
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/data/cleaned")
+
+
+def test_approval_route_ignores_invalid_row_position():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={
+            "balance_sheet": (
+                _balance_sheet_stockholders_equity_csv(),
+                "stockholders-invalid.csv",
+            )
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    approve_response = client.post(
+        "/data/review/approve",
+        data={
+            "statement_type": "balance_sheet",
+            "row_position": "99",
+            "canonical_label": "total_equity",
+        },
+    )
+    assert approve_response.status_code == 302
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "Balance Sheet schema not identity-ready." in html
+    assert "Identity check skipped: missing required fields: total_equity." in html
+    assert "Approve as Total Equity" in html
+
+
+def test_approval_route_does_not_affect_income_or_cash_flow():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={
+            "income_statement": (_csv_file(b"Revenue"), "income-review.csv"),
+            "cash_flow_statement": (_csv_file(b"Operating Cash Flow"), "cash-review.csv"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    approve_response = client.post(
+        "/data/review/approve",
+        data={
+            "statement_type": "balance_sheet",
+            "row_position": "2",
+            "canonical_label": "total_equity",
+        },
+    )
+    assert approve_response.status_code == 302
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "income-review.csv" in html
+    assert "cash-review.csv" in html
+    assert "canonical_label" not in html
+    assert "total_equity" not in html
+
+
+def test_clear_uploaded_data_clears_approval_state():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={
+            "balance_sheet": (
+                _balance_sheet_stockholders_equity_csv(),
+                "approved-before-clear.csv",
+            )
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    approve_response = client.post(
+        "/data/review/approve",
+        data={
+            "statement_type": "balance_sheet",
+            "row_position": "2",
+            "canonical_label": "total_equity",
+        },
+    )
+    assert approve_response.status_code == 302
+    assert "Identity check passed." in client.get("/data/cleaned").get_data(as_text=True)
+
+    clear_response = client.post("/data/clear")
+    assert clear_response.status_code == 302
+
+    new_upload_response = client.post(
+        "/data/upload",
+        data={
+            "balance_sheet": (
+                _balance_sheet_stockholders_equity_csv(),
+                "approved-after-clear.csv",
+            )
+        },
+        content_type="multipart/form-data",
+    )
+    assert new_upload_response.status_code == 200
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "approved-after-clear.csv" in html
+    assert "Balance Sheet schema not identity-ready." in html
+    assert "Approve as Total Equity" in html
 
 
 def test_cleaned_data_with_no_current_upload_shows_empty_state():

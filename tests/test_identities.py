@@ -129,6 +129,23 @@ def test_review_only_rows_are_ignored_for_identity_check():
     assert "total_equity" in result["skipped_reason"]
 
 
+def test_user_approved_rows_are_used_for_identity_check():
+    result = check_balance_sheet_identity(
+        _mapped_df(
+            [
+                _row("total_assets", **{"2023": 1000}),
+                _row("total_liabilities", **{"2023": 400}),
+                _row("total_equity", mapping_status="user_approved", **{"2023": 600}),
+            ]
+        ),
+        _schema(),
+    )
+
+    assert result["ran"] is True
+    assert result["passed"] is True
+    assert result["periods"][0]["total_equity"] == 600
+
+
 def test_duplicate_canonical_rows_skip_cleanly():
     result = check_balance_sheet_identity(
         _mapped_df(
@@ -143,7 +160,7 @@ def test_duplicate_canonical_rows_skip_cleanly():
     )
 
     assert result["ran"] is False
-    assert result["skipped_reason"] == "duplicate auto-mapped rows for total_assets"
+    assert result["skipped_reason"] == "duplicate trusted rows for total_assets"
     assert result["errors"][0]["code"] == "duplicate_canonical_rows"
 
 
