@@ -13,7 +13,7 @@ from werkzeug.utils import secure_filename
 
 from cleaning.ingest import IngestionError, read_uploaded_file
 from cleaning.identities import check_balance_sheet_identity
-from cleaning.mapping import map_statement_rows
+from cleaning.mapping import MAPPING_METADATA_COLUMNS, map_statement_rows
 from cleaning.mechanical import run_mechanical_cleaning
 from cleaning.orientation import normalize_orientation
 from cleaning.schema import validate_balance_sheet_schema
@@ -183,6 +183,40 @@ def build_table_preview(
     }
 
 
+def _has_display_value(value: Any) -> bool:
+    if value is None:
+        return False
+    try:
+        if pd.isna(value):
+            return False
+    except TypeError:
+        pass
+    return str(value).strip() != ""
+
+
+def _balance_sheet_display_df(mapped_df: pd.DataFrame) -> pd.DataFrame:
+    """Build a user-facing Balance Sheet preview without mapping metadata columns."""
+    display_df = mapped_df.drop(
+        columns=[column for column in MAPPING_METADATA_COLUMNS if column in mapped_df.columns],
+        errors="ignore",
+    ).copy()
+    if display_df.empty or len(display_df.columns) == 0:
+        return display_df
+
+    label_column = display_df.columns[0]
+    if "display_label" not in mapped_df.columns:
+        return display_df
+
+    display_df[label_column] = [
+        display_label if _has_display_value(display_label) else existing_label
+        for existing_label, display_label in zip(
+            display_df[label_column].tolist(),
+            mapped_df["display_label"].tolist(),
+        )
+    ]
+    return display_df
+
+
 def _empty_statement_previews() -> dict:
     return {
         statement["key"]: {
@@ -278,16 +312,18 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
             preview_df = orientation_result.dataframe
             schema_validation = None
             identity_check = None
+            display_df = preview_df
             if statement["field_name"] == "balance_sheet":
                 preview_df, _mapping_audit = map_statement_rows(preview_df, "balance_sheet")
                 schema_validation = validate_balance_sheet_schema(preview_df)
                 identity_check = check_balance_sheet_identity(preview_df, schema_validation)
+                display_df = _balance_sheet_display_df(preview_df)
 
             results[statement["key"]] = {
                 "filename": metadata_entry["filename"],
                 "error": None,
                 "table": build_table_preview(
-                    preview_df,
+                    display_df,
                     first_column_header="",
                     highlight_missing=True,
                 ),

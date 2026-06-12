@@ -44,6 +44,17 @@ def _balance_sheet_mapping_csv() -> BytesIO:
     )
 
 
+def _balance_sheet_display_csv() -> BytesIO:
+    return BytesIO(
+        b"Line Item,2022,2023\n"
+        b'Cash and Cash Equivalents,"$1,000","$1,100"\n'
+        b'Property Plant and Equipment,"$2,500","$2,700"\n'
+        b'Total Assets,"$5,000","$5,500"\n'
+        b'Total Liabilities,"$3,000","$3,300"\n'
+        b'Total Equity,"$2,000","$2,200"\n'
+    )
+
+
 def _balance_sheet_missing_equity_csv() -> BytesIO:
     return BytesIO(
         b"Line Item,2022,2023\n"
@@ -168,13 +179,13 @@ def test_uploading_only_balance_sheet_then_cleaned_preview_succeeds():
     html = response.get_data(as_text=True)
     assert "Cleaned Data Preview" in html
     assert "balance.csv" in html
-    assert "2 rows x 17 columns" in html
+    assert "2 rows x 3 columns" in html
     assert "Mechanical cleaning applied." in html
     assert "Balance Sheet cleaned preview" in html
     assert "Income Statement cleaned preview" in html
     assert "No uploaded file for Income Statement." in html
     assert "No uploaded file for Cash Flow Statement." in html
-    assert "canonical_label" in html
+    assert "canonical_label" not in html
     assert "1000" in html
     assert "$1,000" not in html
 
@@ -558,12 +569,12 @@ def test_clean_data_removes_leading_metadata_and_keeps_first_header_blank():
     assert "ebit" not in html
 
 
-def test_balance_sheet_cleaned_preview_applies_mapping_metadata():
+def test_balance_sheet_cleaned_preview_hides_mapping_metadata_and_uses_display_labels():
     client = _client()
 
     upload_response = client.post(
         "/data/upload",
-        data={"balance_sheet": (_balance_sheet_mapping_csv(), "balance-map.csv")},
+        data={"balance_sheet": (_balance_sheet_display_csv(), "balance-map.csv")},
         content_type="multipart/form-data",
     )
     assert upload_response.status_code == 200
@@ -573,12 +584,35 @@ def test_balance_sheet_cleaned_preview_applies_mapping_metadata():
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "balance-map.csv" in html
-    assert "3 rows x 17 columns" in html
-    assert "canonical_label" in html
-    assert "mapping_status" in html
-    assert "total_assets" in html
-    assert "total_liabilities" in html
-    assert "total_equity" in html
+    assert "5 rows x 3 columns" in html
+    for metadata_header in [
+        "canonical_label",
+        "mapping_status",
+        "original_label",
+        "normalized_label",
+        "review_reason",
+        "concept_category",
+        "concept_family",
+        "rollup_role",
+        "CANONICAL_LABEL",
+        "MAPPING_STATUS",
+        "ORIGINAL_LABEL",
+        "NORMALIZED_LABEL",
+        "REVIEW_REASON",
+        "CONCEPT_CATEGORY",
+        "CONCEPT_FAMILY",
+        "ROLLUP_ROLE",
+    ]:
+        assert metadata_header not in html
+    assert "Total Assets" in html
+    assert "Total Liabilities" in html
+    assert "Total Equity" in html
+    assert "Cash and Cash Equivalents" in html
+    assert "PP&amp;E" in html
+    assert "total_assets" not in html
+    assert "total_liabilities" not in html
+    assert "total_equity" not in html
+    assert "cash_and_equivalents" not in html
     assert "Balance Sheet schema identity-ready." in html
     assert "Identity check passed." in html
     assert "5000" in html
@@ -675,9 +709,9 @@ def test_three_statement_cleaned_preview_still_works_with_balance_sheet_mapping(
     assert "income.csv" in html
     assert "balance.csv" in html
     assert "cash-flow.csv" in html
-    assert "total_assets" in html
-    assert "total_liabilities" in html
-    assert "total_equity" in html
+    assert "Total Assets" in html
+    assert "Total Liabilities" in html
+    assert "Total Equity" in html
 
 
 def test_balance_sheet_mapping_error_shows_clean_error(monkeypatch):
@@ -722,9 +756,9 @@ def test_balance_sheet_cleaned_preview_shows_missing_required_schema_status():
     assert "Balance Sheet schema not identity-ready." in html
     assert "Missing required: total_equity." in html
     assert "Identity check skipped: missing required fields: total_equity." in html
-    assert "total_assets" in html
-    assert "total_liabilities" in html
-    assert "inventory" in html
+    assert "Total Assets" in html
+    assert "Total Liabilities" in html
+    assert "Inventory" in html
     assert "5500" in html
     assert "3300" in html
 

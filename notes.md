@@ -1265,3 +1265,71 @@ preview pages.
 Add a later development-only cleanup policy for abandoned upload directories,
 such as age-based temp cleanup, while keeping it separate from user-triggered
 current-upload clearing.
+
+## 32. Cleaned preview metadata display separation
+
+### What changed
+
+The default cleaned Balance Sheet preview now hides backend mapping metadata
+columns and shows a user-facing table with readable labels and period values.
+
+### Files touched
+
+- `web/routes.py`
+- `tests/test_routes.py`
+- `notes.md`
+
+### Why it changed
+
+Mapping metadata is useful for backend validation and future review workflows,
+but exposing columns such as `canonical_label`, `mapping_status`,
+`review_reason`, and `concept_category` in the normal cleaned preview makes the
+table hard to read and is not appropriate for the default user-facing view.
+
+### Current behavior
+
+- Balance Sheet mapping still runs after cleaning, table-boundary cleanup, and
+  orientation normalization.
+- Schema validation and identity checks still use the full mapped DataFrame.
+- The cleaned Balance Sheet preview is built from a separate display DataFrame.
+- Mapping metadata columns are omitted from the default table.
+- If `display_label` is present, it becomes the visible row label.
+- Rows without a `display_label` fall back to the cleaned source label.
+- Income Statement and Cash Flow cleaned previews remain unmapped and unchanged.
+- Raw preview behavior is unchanged.
+
+### Backend/display separation
+
+The backend Balance Sheet DataFrame keeps mapping metadata for internal stages.
+Only the DataFrame passed into the table-preview renderer is stripped of
+metadata columns. This keeps validation and identity logic deterministic while
+presenting a cleaner table to users.
+
+### Future uses of mapping metadata
+
+- Schema validation uses `canonical_label` to identify required fields and
+  `mapping_status` to decide whether a row is trusted.
+- Identity checks use only strict `auto_mapped` canonical rows, excluding
+  `review_only`, `unmapped`, and `deferred` rows.
+- The analyst review gate can use `mapping_status`, `review_reason`,
+  `concept_category`, `concept_family`, and `rollup_role` to show what needs
+  review.
+- A future user approval workflow may allow `review_only` rows to become
+  user-approved canonical rows.
+- Audit trails can use `original_label`, `normalized_label`, `matched_alias`,
+  and `matched_rule_kind` to explain how a row was mapped.
+- SQL persistence can save approved canonical data while preserving source and
+  audit metadata.
+- The analysis layer can use canonical labels for ratios, charts, models, and
+  comparisons instead of messy uploaded labels.
+
+### Known limitations
+
+- There is still no analyst review panel or user approval workflow.
+- Review reasons are not shown inside the main table.
+- SQL persistence remains unimplemented.
+
+### Next suggested step
+
+Design the analyst review gate for `review_only`, `deferred`, unmapped, and
+duplicate canonical rows before any approval or persistence workflow is added.
