@@ -841,7 +841,7 @@ validation, derivations, identity checks, rollups, or persistence.
 - Unsupported statement types raise a clean `ValueError`.
 - Balance Sheet Asset aliases map to internal canonicals such as
   `cash_and_equivalents`, `accounts_receivable`, `receivables_total`,
-  `inventory`, `current_assets`, `pp_and_e`, and `total_assets`.
+  `inventory`, `current_assets`, `ppe`, and `total_assets`.
 - Special labels are tagged as `review_only`, `deferred`, or `unmapped` instead
   of being forced into narrow canonicals.
 - Each output row receives mapping metadata and an audit record with the same
