@@ -181,7 +181,6 @@ _AUTO_MAP_ASSET_RULES = {
     )
     for alias in (
         "cash and cash equivalents",
-        "cash and equivalents",
     )
 }
 
@@ -251,7 +250,7 @@ _AUTO_MAP_ASSET_RULES.update(
     {
         alias: _auto_rule(
             alias=alias,
-            canonical_label="pp_and_e",
+            canonical_label="ppe",
             display_label="PP&E",
             concept_family="long_lived_assets",
             rollup_role="narrow",
@@ -286,7 +285,6 @@ _AUTO_MAP_LIABILITY_RULES = {
     for alias in (
         "accounts payable",
         "trade payables",
-        "trade payable",
     )
 }
 

@@ -28,7 +28,7 @@ def test_auto_maps_core_balance_sheet_asset_labels():
         "accounts_receivable",
         "inventory",
         "current_assets",
-        "pp_and_e",
+        "ppe",
         "total_assets",
     ]
     assert mapped_df["display_label"].tolist() == [
@@ -112,10 +112,10 @@ def test_special_labels_are_not_forced_into_narrow_canonicals():
 
     assert mapped_df.loc[4, "mapping_status"] == "review_only"
     assert mapped_df.loc[4, "concept_category"] == "conditional_label"
-    assert mapped_df.loc[4, "canonical_label"] != "pp_and_e"
+    assert mapped_df.loc[4, "canonical_label"] != "ppe"
 
     assert mapped_df.loc[5, "mapping_status"] == "deferred"
-    assert mapped_df.loc[5, "canonical_label"] != "pp_and_e"
+    assert mapped_df.loc[5, "canonical_label"] != "ppe"
 
 
 def test_restricted_cash_flag_is_review_only():
