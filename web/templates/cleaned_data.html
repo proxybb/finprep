@@ -55,22 +55,8 @@
         {% for statement in statements %}
             {% set result = results[statement.key] %}
             <div class="tab-panel {% if loop.first %}is-active{% endif %}" id="cleaned-{{ statement.panel_id }}" role="tabpanel" aria-labelledby="cleaned-{{ statement.tab_id }}" data-tab-panel="{{ statement.key }}" {% if not loop.first %}hidden{% endif %}>
-                <article class="table-card table-card--embedded" data-expandable-card>
-                    <div class="table-card__header">
-                        <div>
-                            <h2>{{ statement.label }} cleaned preview</h2>
-                            {% if result.table %}
-                                <p>{{ result.filename }} - {{ result.table.row_count }} rows x {{ result.table.column_count }} columns{% if result.table.is_truncated %} - first {{ result.table.preview_row_count }} shown{% endif %}</p>
-                            {% elif result.error %}
-                                <p>{{ result.filename }} - cleaning unavailable</p>
-                            {% else %}
-                                <p>No file uploaded for this statement.</p>
-                            {% endif %}
-                        </div>
-                        <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
-                    </div>
-
-                    {% if result.table %}
+                {% if result.table %}
+                    <div class="cleaned-preview-status" data-cleaned-status-panel>
                         <div class="cleaning-status" role="status">
                             <span>Mechanical cleaning applied.</span>
                             {% if result.orientation %}
@@ -171,7 +157,16 @@
                                 </section>
                             {% endif %}
                         {% endif %}
+                    </div>
 
+                    <article class="table-card table-card--embedded" data-expandable-card>
+                        <div class="table-card__header">
+                            <div>
+                                <h2>{{ statement.label }} cleaned preview</h2>
+                                <p>{{ result.filename }} - {{ result.table.row_count }} rows x {{ result.table.column_count }} columns{% if result.table.is_truncated %} - first {{ result.table.preview_row_count }} shown{% endif %}</p>
+                            </div>
+                            <button class="secondary-button" type="button" data-expand-button aria-expanded="false">Expand</button>
+                        </div>
                         <div class="table-wrap table-wrap--compact">
                             <table class="data-table">
                                 <thead>
@@ -197,17 +192,33 @@
                                 </tbody>
                             </table>
                         </div>
-                    {% elif result.error %}
+                    </article>
+                {% elif result.error %}
+                    <article class="table-card table-card--embedded">
+                        <div class="table-card__header">
+                            <div>
+                                <h2>{{ statement.label }} cleaned preview</h2>
+                                <p>{{ result.filename }} - cleaning unavailable</p>
+                            </div>
+                        </div>
                         <div class="empty-state empty-state--error">
                             <strong>{{ result.error }}</strong>
                         </div>
-                    {% else %}
+                    </article>
+                {% else %}
+                    <article class="table-card table-card--embedded">
+                        <div class="table-card__header">
+                            <div>
+                                <h2>{{ statement.label }} cleaned preview</h2>
+                                <p>No file uploaded for this statement.</p>
+                            </div>
+                        </div>
                         <div class="empty-state">
                             <strong>No uploaded file for {{ statement.label }}.</strong>
                             <span>Upload this statement on the Data page to include it in mechanical cleaning.</span>
                         </div>
-                    {% endif %}
-                </article>
+                    </article>
+                {% endif %}
             </div>
         {% endfor %}
     </section>

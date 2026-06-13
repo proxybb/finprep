@@ -1481,3 +1481,53 @@ the strict check ran, and at least one period did not satisfy
 
 Design the full analyst review gate for duplicate trusted rows, deferred rows,
 unmapped rows, and approval audit history before adding SQL persistence.
+
+## 35. Cleaned table fullscreen scope fix
+
+### What changed
+
+The cleaned preview template now renders Balance Sheet cleaning, schema,
+identity, and review status panels outside the expandable cleaned table card.
+The expand/fullscreen button remains attached only to the cleaned table preview.
+
+### Files touched
+
+- `web/templates/cleaned_data.html`
+- `tests/test_routes.py`
+- `notes.md`
+
+### Why it changed
+
+The previous cleaned preview markup placed validation/status panels inside the
+same `data-expandable-card` container as the table. The existing fullscreen
+JavaScript expands that whole container, so Balance Sheet validation messages,
+identity explanations, review prompts, and approval buttons became part of the
+fullscreen table area.
+
+### Current behavior
+
+- Balance Sheet status, schema, identity, and review panels render above the
+  cleaned table.
+- The cleaned table renders in its own `data-expandable-card` container below
+  those panels.
+- Clicking `Expand` affects only the cleaned table card and table scroll area.
+- The default cleaned Balance Sheet table still hides backend mapping metadata
+  columns.
+- Income Statement and Cash Flow cleaned previews still render as expandable
+  cleaned table previews without Balance Sheet mapping or validation panels.
+- Raw preview expand behavior is unchanged.
+- Clear uploaded data behavior is unchanged.
+
+### Known limitations
+
+- This is a markup-scope fix only; it does not add overrides, a full analyst
+  review gate, Income Statement mapping, Cash Flow mapping, or persistence.
+- The existing fullscreen JavaScript still expands the nearest
+  `data-expandable-card`; future panels must stay outside that card if they
+  should not enter fullscreen.
+
+### Next suggested step
+
+Manually review the cleaned preview in a browser with passing, failing, skipped,
+and approval Balance Sheet examples before designing the broader analyst review
+gate.

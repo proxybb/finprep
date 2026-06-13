@@ -84,6 +84,14 @@ def _balance_sheet_stockholders_equity_csv(equity_value: int = 600) -> BytesIO:
     )
 
 
+def _extract_expandable_table_card(html: str, filename: str) -> str:
+    filename_index = html.index(filename)
+    start = html.rfind('<article class="table-card table-card--embedded" data-expandable-card>', 0, filename_index)
+    assert start != -1
+    end = html.index("</article>", filename_index) + len("</article>")
+    return html[start:end]
+
+
 def test_existing_routes_return_200():
     client = _client()
 
@@ -632,6 +640,51 @@ def test_balance_sheet_cleaned_preview_hides_mapping_metadata_and_uses_display_l
     assert "3300" in html
     assert "2000" in html
     assert "2200" in html
+    table_card = _extract_expandable_table_card(html, "balance-map.csv")
+    for metadata_header in [
+        "canonical_label",
+        "mapping_status",
+        "original_label",
+        "normalized_label",
+        "review_reason",
+        "concept_category",
+        "concept_family",
+        "rollup_role",
+    ]:
+        assert metadata_header not in table_card
+
+
+def test_balance_sheet_validation_status_renders_outside_expandable_cleaned_table():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={"balance_sheet": (_balance_sheet_mapping_csv(), "balance-status-outside.csv")},
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    status_index = html.index('data-cleaned-status-panel')
+    schema_index = html.index("Balance Sheet is ready for identity validation.")
+    identity_index = html.index("Balance Sheet identity check passed.")
+    table_card_start = html.index(
+        '<article class="table-card table-card--embedded" data-expandable-card>',
+        status_index,
+    )
+    assert status_index < schema_index < table_card_start
+    assert status_index < identity_index < table_card_start
+
+    table_card = _extract_expandable_table_card(html, "balance-status-outside.csv")
+    assert 'data-expand-button aria-expanded="false">Expand</button>' in table_card
+    assert '<div class="table-wrap table-wrap--compact">' in table_card
+    assert "validation-panel" not in table_card
+    assert "cleaning-status" not in table_card
+    assert "Balance Sheet is ready for identity validation." not in table_card
+    assert "Balance Sheet identity check passed." not in table_card
 
 
 def test_balance_sheet_raw_preview_remains_unmapped():
@@ -675,6 +728,10 @@ def test_only_income_statement_cleaned_preview_does_not_run_mapping():
     assert "total_assets" not in html
     assert "total_liabilities" not in html
     assert "total_equity" not in html
+    table_card = _extract_expandable_table_card(html, "income-only.csv")
+    assert "Income Statement cleaned preview" in table_card
+    assert '<div class="table-wrap table-wrap--compact">' in table_card
+    assert "validation-panel" not in table_card
 
 
 def test_only_cash_flow_cleaned_preview_does_not_run_mapping():
@@ -697,6 +754,10 @@ def test_only_cash_flow_cleaned_preview_does_not_run_mapping():
     assert "total_assets" not in html
     assert "total_liabilities" not in html
     assert "total_equity" not in html
+    table_card = _extract_expandable_table_card(html, "cash-only.csv")
+    assert "Cash Flow Statement cleaned preview" in table_card
+    assert '<div class="table-wrap table-wrap--compact">' in table_card
+    assert "validation-panel" not in table_card
 
 
 def test_three_statement_cleaned_preview_still_works_with_balance_sheet_mapping():
@@ -723,6 +784,9 @@ def test_three_statement_cleaned_preview_still_works_with_balance_sheet_mapping(
     assert "Total Assets" in html
     assert "Total Liabilities" in html
     assert "Total Equity" in html
+    assert "Income Statement cleaned preview" in _extract_expandable_table_card(html, "income.csv")
+    assert "Balance Sheet cleaned preview" in _extract_expandable_table_card(html, "balance.csv")
+    assert "Cash Flow Statement cleaned preview" in _extract_expandable_table_card(html, "cash-flow.csv")
 
 
 def test_balance_sheet_mapping_error_shows_clean_error(monkeypatch):
@@ -796,6 +860,9 @@ def test_balance_sheet_cleaned_preview_shows_passing_identity_status():
     assert "Balance Sheet identity check passed." in html
     assert "Assets equal Liabilities + Equity for all checked periods." in html
     assert "Balance Sheet identity check failed." not in html
+    table_card = _extract_expandable_table_card(html, "balance-pass.csv")
+    assert "validation-panel" not in table_card
+    assert "Balance Sheet identity check passed." not in table_card
 
 
 def test_balance_sheet_cleaned_preview_shows_skipped_identity_status():
@@ -815,6 +882,10 @@ def test_balance_sheet_cleaned_preview_shows_skipped_identity_status():
     assert "balance-skip.csv" in html
     assert "Identity check skipped." in html
     assert "missing required fields: total_equity" in html
+    table_card = _extract_expandable_table_card(html, "balance-skip.csv")
+    assert "validation-panel" not in table_card
+    assert "Identity check skipped." not in table_card
+    assert "missing required fields: total_equity" not in table_card
 
 
 def test_balance_sheet_cleaned_preview_shows_failing_identity_status():
@@ -841,6 +912,16 @@ def test_balance_sheet_cleaned_preview_shows_failing_identity_status():
     assert "900" in html
     assert "100" in html
     assert "Fail" in html
+    identity_detail_index = html.index("identity-detail-table")
+    table_card_start = html.index(
+        '<article class="table-card table-card--embedded" data-expandable-card>',
+        identity_detail_index,
+    )
+    assert identity_detail_index < table_card_start
+    table_card = _extract_expandable_table_card(html, "balance-fail.csv")
+    assert "validation-panel" not in table_card
+    assert "identity-detail-table" not in table_card
+    assert "Balance Sheet identity check failed." not in table_card
 
 
 def test_balance_sheet_review_panel_shows_required_field_candidate():
@@ -872,6 +953,15 @@ def test_balance_sheet_review_panel_shows_required_field_candidate():
     assert "Approve as Total Equity" in html
     assert "Identity check cannot run until required fields are mapped or approved." in html
     assert 'name="row_position" value="2"' in html
+    review_index = html.index("review-candidate")
+    table_card_start = html.index(
+        '<article class="table-card table-card--embedded" data-expandable-card>',
+        review_index,
+    )
+    assert review_index < table_card_start
+    table_card = _extract_expandable_table_card(html, "stockholders.csv")
+    assert "review-candidate" not in table_card
+    assert "Approve as Total Equity" not in table_card
 
 
 def test_approving_stockholders_equity_reruns_schema_and_identity():
@@ -911,6 +1001,9 @@ def test_approving_stockholders_equity_reruns_schema_and_identity():
     assert "Approve as Total Equity" not in html
     assert "Total Equity" in html
     assert "total_equity" not in html
+    table_card = _extract_expandable_table_card(html, "stockholders-pass.csv")
+    assert "validation-panel" not in table_card
+    assert "Balance Sheet identity check passed." not in table_card
 
 
 def test_approved_stockholders_equity_can_fail_identity():
