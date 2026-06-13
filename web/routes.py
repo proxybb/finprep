@@ -542,6 +542,65 @@ def _build_saved_upload_previews(upload_id: str | None) -> dict:
     return previews
 
 
+def _build_balance_sheet_result(
+    oriented_df: pd.DataFrame,
+    metadata: dict,
+) -> dict[str, Any]:
+    """Run Balance Sheet mapping, approvals, overrides, validation, and identity check."""
+    preview_df, _mapping_audit = map_statement_rows(oriented_df, "balance_sheet")
+    preview_df = apply_balance_sheet_approvals(
+        preview_df,
+        _balance_sheet_approvals(metadata),
+    )
+    preview_df = apply_balance_sheet_overrides(
+        preview_df,
+        _balance_sheet_overrides(metadata),
+    )
+    schema_validation = validate_balance_sheet_schema(preview_df)
+    identity_check = check_balance_sheet_identity(preview_df, schema_validation)
+    override_forms = _build_override_forms(schema_validation, preview_df)
+    display_df = _balance_sheet_display_df(preview_df)
+    return {
+        "schema_validation": schema_validation,
+        "identity_check": identity_check,
+        "override_forms": override_forms,
+        "display_df": display_df,
+    }
+
+
+def _build_income_statement_result(
+    oriented_df: pd.DataFrame,
+    metadata: dict,
+) -> dict[str, Any]:
+    """Return the oriented Income Statement DataFrame with no mapping applied."""
+    return {
+        "schema_validation": None,
+        "identity_check": None,
+        "override_forms": [],
+        "display_df": oriented_df,
+    }
+
+
+def _build_cash_flow_result(
+    oriented_df: pd.DataFrame,
+    metadata: dict,
+) -> dict[str, Any]:
+    """Return the oriented Cash Flow Statement DataFrame with no mapping applied."""
+    return {
+        "schema_validation": None,
+        "identity_check": None,
+        "override_forms": [],
+        "display_df": oriented_df,
+    }
+
+
+_STATEMENT_RESULT_HANDLERS: dict[str, Any] = {
+    "income_statement": _build_income_statement_result,
+    "balance_sheet": _build_balance_sheet_result,
+    "cash_flow_statement": _build_cash_flow_result,
+}
+
+
 def _build_cleaned_results(upload_id: str | None) -> dict:
     results = _empty_statement_previews()
     metadata = _load_upload_metadata(upload_id)
@@ -558,31 +617,15 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
             cleaned_df = cleaning_result["cleaned_df"]
             boundary_result = normalize_table_boundary(cleaned_df)
             orientation_result = normalize_orientation(boundary_result.dataframe)
-            preview_df = orientation_result.dataframe
-            schema_validation = None
-            identity_check = None
-            override_forms = []
-            display_df = preview_df
-            if statement["field_name"] == "balance_sheet":
-                preview_df, _mapping_audit = map_statement_rows(preview_df, "balance_sheet")
-                preview_df = apply_balance_sheet_approvals(
-                    preview_df,
-                    _balance_sheet_approvals(metadata),
-                )
-                preview_df = apply_balance_sheet_overrides(
-                    preview_df,
-                    _balance_sheet_overrides(metadata),
-                )
-                schema_validation = validate_balance_sheet_schema(preview_df)
-                identity_check = check_balance_sheet_identity(preview_df, schema_validation)
-                override_forms = _build_override_forms(schema_validation, preview_df)
-                display_df = _balance_sheet_display_df(preview_df)
+
+            handler = _STATEMENT_RESULT_HANDLERS[statement["field_name"]]
+            statement_result = handler(orientation_result.dataframe, metadata)
 
             results[statement["key"]] = {
                 "filename": metadata_entry["filename"],
                 "error": None,
                 "table": build_table_preview(
-                    display_df,
+                    statement_result["display_df"],
                     first_column_header="",
                     highlight_missing=True,
                 ),
@@ -592,10 +635,12 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
                     "confidence": orientation_result.confidence,
                     "message": orientation_result.message,
                 },
-                "schema_validation": schema_validation,
-                "identity_check": identity_check,
-                "identity_periods": _build_identity_period_display(identity_check),
-                "override_forms": override_forms,
+                "schema_validation": statement_result["schema_validation"],
+                "identity_check": statement_result["identity_check"],
+                "identity_periods": _build_identity_period_display(
+                    statement_result["identity_check"]
+                ),
+                "override_forms": statement_result["override_forms"],
             }
         except (IngestionError, OSError, KeyError, ValueError) as exc:
             results[statement["key"]] = {
