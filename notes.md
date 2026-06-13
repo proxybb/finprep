@@ -1416,3 +1416,68 @@ rows. `review_only`, `deferred`, and `unmapped` rows remain excluded.
 Expand the review gate design to include duplicate trusted rows, deferred
 canonicals, unmapped rows, and a clear approval audit before adding permanent
 SQL persistence.
+
+## 34. Balance Sheet validation and identity explanation UI
+
+### What changed
+
+The cleaned Balance Sheet page now explains schema readiness and identity
+results with compact panels instead of terse status fragments.
+
+### Files touched
+
+- `web/routes.py`
+- `web/templates/cleaned_data.html`
+- `web/static/css/main.css`
+- `tests/test_routes.py`
+- `notes.md`
+
+### Why it changed
+
+Users need to understand whether the Balance Sheet can run strict identity
+validation, whether the identity check passed or failed, and what action is
+needed when required fields are missing or review candidates are available.
+
+### Current UI behavior
+
+- When required Balance Sheet fields are mapped or approved, the page shows:
+  `Balance Sheet is ready for identity validation.`
+- When required fields are missing, the page shows:
+  `Balance Sheet is not ready for identity validation.`
+- The not-ready panel lists missing required fields, shows any suggested review
+  candidates with approve buttons, and explains that the identity check cannot
+  run until required fields are mapped or approved.
+- When the identity check passes, the page shows:
+  `Balance Sheet identity check passed.`
+- When the identity check fails, the page shows:
+  `Balance Sheet identity check failed.`
+  It also displays period-level assets, liabilities, equity,
+  liabilities plus equity, difference, and pass/fail result.
+- When the identity check is skipped, the page shows:
+  `Identity check skipped.`
+  It also displays the skipped reason.
+- The default cleaned Balance Sheet table still hides backend metadata columns.
+- Income Statement and Cash Flow cleaned previews remain unmapped and
+  unaffected.
+- Raw preview behavior and upload behavior are unchanged.
+
+### Difference between schema failure and identity failure
+
+Schema failure means required Balance Sheet inputs are not trusted yet, such as
+missing `total_equity`; identity validation is skipped until the missing field
+is mapped or approved. Identity failure means the required inputs are present,
+the strict check ran, and at least one period did not satisfy
+`total_assets = total_liabilities + total_equity`.
+
+### Known limitations
+
+- The review UI remains narrow and supports only existing schema-blocking
+  review candidates.
+- There is still no full analyst review gate, mapping editor, duplicate-row
+  resolution, derivation workflow, or persistence approval step.
+- Period details are display-only formatting of the existing identity result.
+
+### Next suggested step
+
+Design the full analyst review gate for duplicate trusted rows, deferred rows,
+unmapped rows, and approval audit history before adding SQL persistence.

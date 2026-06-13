@@ -516,6 +516,120 @@ h3 {
     font-weight: 700;
 }
 
+.validation-panel {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 14px;
+    background: #F9FAFB;
+    font-size: 13px;
+}
+
+.validation-panel strong {
+    font-size: 14px;
+}
+
+.validation-panel p {
+    margin-bottom: 0;
+    color: var(--color-muted);
+}
+
+.validation-panel ul {
+    margin: 4px 0 0;
+    padding-left: 18px;
+}
+
+.validation-panel--success {
+    border-color: #BBF7D0;
+    background: #F0FDF4;
+}
+
+.validation-panel--success strong {
+    color: #166534;
+}
+
+.validation-panel--warning {
+    border-color: #FDE68A;
+    background: #FFFBEB;
+}
+
+.validation-panel--warning strong,
+.validation-panel--warning .validation-panel__label {
+    color: #92400E;
+}
+
+.validation-panel--error {
+    border-color: #FCA5A5;
+    background: #FEF2F2;
+}
+
+.validation-panel--error strong {
+    color: var(--color-error);
+}
+
+.validation-panel__section {
+    display: grid;
+    gap: 6px;
+}
+
+.validation-panel__label {
+    font-weight: 700;
+}
+
+.review-candidate {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.review-candidate > div {
+    display: grid;
+    gap: 2px;
+    color: var(--color-muted);
+}
+
+.identity-detail-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: #FFFFFF;
+}
+
+.identity-detail-table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.identity-detail-table th,
+.identity-detail-table td {
+    border-bottom: 1px solid var(--color-border);
+    padding: 9px 10px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.identity-detail-table th:first-child,
+.identity-detail-table td:first-child {
+    text-align: left;
+}
+
+.identity-detail-table thead th {
+    background: #F9FAFB;
+    color: #374151;
+    font-size: 12px;
+}
+
+.identity-detail-table tr:last-child th,
+.identity-detail-table tr:last-child td {
+    border-bottom: 0;
+}
+
 .data-table__cell--missing {
     background: #FEF2F2;
     color: #991B1B;
@@ -714,7 +828,8 @@ h3 {
 
     .table-card__header,
     .upload-card__header,
-    .stage-summary__item {
+    .stage-summary__item,
+    .review-candidate {
         align-items: stretch;
         flex-direction: column;
     }

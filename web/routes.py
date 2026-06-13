@@ -261,6 +261,57 @@ def _balance_sheet_display_df(mapped_df: pd.DataFrame) -> pd.DataFrame:
     return display_df
 
 
+def _format_identity_number(value: Any) -> str:
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except TypeError:
+        pass
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return f"{value:,.0f}" if float(value).is_integer() else f"{value:,.2f}"
+    return str(value)
+
+
+def _build_identity_period_display(identity_check: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Format identity-check period values for the cleaned Balance Sheet UI."""
+    if not isinstance(identity_check, dict):
+        return []
+
+    periods = identity_check.get("periods", [])
+    if not isinstance(periods, list):
+        return []
+
+    display_periods = []
+    for period in periods:
+        if not isinstance(period, dict):
+            continue
+        liabilities = period.get("total_liabilities")
+        equity = period.get("total_equity")
+        liabilities_plus_equity = None
+        if liabilities is not None and equity is not None:
+            liabilities_plus_equity = liabilities + equity
+
+        display_periods.append(
+            {
+                "period": period.get("period"),
+                "total_assets": _format_identity_number(period.get("total_assets")),
+                "total_liabilities": _format_identity_number(liabilities),
+                "total_equity": _format_identity_number(equity),
+                "liabilities_plus_equity": _format_identity_number(
+                    liabilities_plus_equity
+                ),
+                "difference": _format_identity_number(period.get("difference")),
+                "passed": bool(period.get("passed")),
+                "error": period.get("error"),
+            }
+        )
+    return display_periods
+
+
 def _empty_statement_previews() -> dict:
     return {
         statement["key"]: {
@@ -383,6 +434,7 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
                 },
                 "schema_validation": schema_validation,
                 "identity_check": identity_check,
+                "identity_periods": _build_identity_period_display(identity_check),
             }
         except (IngestionError, OSError, KeyError, ValueError) as exc:
             results[statement["key"]] = {
@@ -392,6 +444,7 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
                 "orientation": None,
                 "schema_validation": None,
                 "identity_check": None,
+                "identity_periods": [],
             }
 
     return results

@@ -66,10 +66,10 @@ def _balance_sheet_missing_equity_csv() -> BytesIO:
 
 def _balance_sheet_failing_identity_csv() -> BytesIO:
     return BytesIO(
-        b"Line Item,2022,2023\n"
-        b'Total Assets,"$5,000","$5,500"\n'
-        b'Total Liabilities,"$3,000","$3,300"\n'
-        b'Total Equity,"$2,100","$2,200"\n'
+        b"Line Item,2023\n"
+        b'Total Assets,"$1,000"\n'
+        b'Total Liabilities,"$400"\n'
+        b'Total Equity,"$500"\n'
     )
 
 
@@ -339,7 +339,7 @@ def test_cleaned_data_after_clear_shows_no_upload_state():
     cleaned_before_clear = client.get("/data/cleaned")
     assert cleaned_before_clear.status_code == 200
     assert "balance-cleaned-clear.csv" in cleaned_before_clear.get_data(as_text=True)
-    assert "Identity check passed." in cleaned_before_clear.get_data(as_text=True)
+    assert "Balance Sheet identity check passed." in cleaned_before_clear.get_data(as_text=True)
 
     clear_response = client.post("/data/clear")
     assert clear_response.status_code == 302
@@ -350,7 +350,7 @@ def test_cleaned_data_after_clear_shows_no_upload_state():
     html = response.get_data(as_text=True)
     assert "No uploaded files are available to clean." in html
     assert "balance-cleaned-clear.csv" not in html
-    assert "Identity check passed." not in html
+    assert "Balance Sheet identity check passed." not in html
     assert "total_assets" not in html
 
 
@@ -624,8 +624,8 @@ def test_balance_sheet_cleaned_preview_hides_mapping_metadata_and_uses_display_l
     assert "total_liabilities" not in html
     assert "total_equity" not in html
     assert "cash_and_equivalents" not in html
-    assert "Balance Sheet schema identity-ready." in html
-    assert "Identity check passed." in html
+    assert "Balance Sheet is ready for identity validation." in html
+    assert "Balance Sheet identity check passed." in html
     assert "5000" in html
     assert "5500" in html
     assert "3000" in html
@@ -764,9 +764,12 @@ def test_balance_sheet_cleaned_preview_shows_missing_required_schema_status():
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "balance-missing.csv" in html
-    assert "Balance Sheet schema not identity-ready." in html
-    assert "Missing required: total_equity." in html
-    assert "Identity check skipped: missing required fields: total_equity." in html
+    assert "Balance Sheet is not ready for identity validation." in html
+    assert "Missing required fields" in html
+    assert "total_equity" in html
+    assert "Identity check cannot run until required fields are mapped or approved." in html
+    assert "Identity check skipped." in html
+    assert "missing required fields: total_equity" in html
     assert "Total Assets" in html
     assert "Total Liabilities" in html
     assert "Inventory" in html
@@ -789,7 +792,10 @@ def test_balance_sheet_cleaned_preview_shows_passing_identity_status():
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "balance-pass.csv" in html
-    assert "Identity check passed." in html
+    assert "Balance Sheet is ready for identity validation." in html
+    assert "Balance Sheet identity check passed." in html
+    assert "Assets equal Liabilities + Equity for all checked periods." in html
+    assert "Balance Sheet identity check failed." not in html
 
 
 def test_balance_sheet_cleaned_preview_shows_skipped_identity_status():
@@ -807,7 +813,8 @@ def test_balance_sheet_cleaned_preview_shows_skipped_identity_status():
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "balance-skip.csv" in html
-    assert "Identity check skipped: missing required fields: total_equity." in html
+    assert "Identity check skipped." in html
+    assert "missing required fields: total_equity" in html
 
 
 def test_balance_sheet_cleaned_preview_shows_failing_identity_status():
@@ -825,8 +832,15 @@ def test_balance_sheet_cleaned_preview_shows_failing_identity_status():
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "balance-fail.csv" in html
-    assert "Balance Sheet schema identity-ready." in html
-    assert "Identity check failed." in html
+    assert "Balance Sheet is ready for identity validation." in html
+    assert "Balance Sheet identity check failed." in html
+    assert "2023" in html
+    assert "1,000" in html
+    assert "400" in html
+    assert "500" in html
+    assert "900" in html
+    assert "100" in html
+    assert "Fail" in html
 
 
 def test_balance_sheet_review_panel_shows_required_field_candidate():
@@ -849,12 +863,14 @@ def test_balance_sheet_review_panel_shows_required_field_candidate():
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "stockholders.csv" in html
-    assert "Balance Sheet schema not identity-ready." in html
-    assert "Missing required: total_equity." in html
-    assert "Review needed" in html
-    assert "Stockholders Equity may be used as Total Equity." in html
+    assert "Balance Sheet is not ready for identity validation." in html
+    assert "Missing required fields" in html
+    assert "total_equity" in html
+    assert "Suggested review" in html
+    assert "Stockholders Equity may be approved as Total Equity." in html
     assert "Owner-only equity may exclude non-controlling interests." in html
     assert "Approve as Total Equity" in html
+    assert "Identity check cannot run until required fields are mapped or approved." in html
     assert 'name="row_position" value="2"' in html
 
 
@@ -890,8 +906,8 @@ def test_approving_stockholders_equity_reruns_schema_and_identity():
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "stockholders-pass.csv" in html
-    assert "Balance Sheet schema identity-ready." in html
-    assert "Identity check passed." in html
+    assert "Balance Sheet is ready for identity validation." in html
+    assert "Balance Sheet identity check passed." in html
     assert "Approve as Total Equity" not in html
     assert "Total Equity" in html
     assert "total_equity" not in html
@@ -927,8 +943,8 @@ def test_approved_stockholders_equity_can_fail_identity():
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "stockholders-fail.csv" in html
-    assert "Balance Sheet schema identity-ready." in html
-    assert "Identity check failed." in html
+    assert "Balance Sheet is ready for identity validation." in html
+    assert "Balance Sheet identity check failed." in html
 
 
 def test_approval_route_is_safe_without_upload():
@@ -974,8 +990,9 @@ def test_approval_route_ignores_invalid_row_position():
 
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert "Balance Sheet schema not identity-ready." in html
-    assert "Identity check skipped: missing required fields: total_equity." in html
+    assert "Balance Sheet is not ready for identity validation." in html
+    assert "Identity check skipped." in html
+    assert "missing required fields: total_equity" in html
     assert "Approve as Total Equity" in html
 
 
@@ -1036,7 +1053,7 @@ def test_clear_uploaded_data_clears_approval_state():
         },
     )
     assert approve_response.status_code == 302
-    assert "Identity check passed." in client.get("/data/cleaned").get_data(as_text=True)
+    assert "Balance Sheet identity check passed." in client.get("/data/cleaned").get_data(as_text=True)
 
     clear_response = client.post("/data/clear")
     assert clear_response.status_code == 302
@@ -1058,7 +1075,7 @@ def test_clear_uploaded_data_clears_approval_state():
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "approved-after-clear.csv" in html
-    assert "Balance Sheet schema not identity-ready." in html
+    assert "Balance Sheet is not ready for identity validation." in html
     assert "Approve as Total Equity" in html
 
 

@@ -76,45 +76,100 @@
                             {% if result.orientation %}
                                 <span>{{ result.orientation.message }}</span>
                             {% endif %}
-                            {% if result.schema_validation %}
-                                {% if result.schema_validation.identity_ready %}
-                                    <span>Balance Sheet schema identity-ready.</span>
-                                {% else %}
-                                    <span>Balance Sheet schema not identity-ready. Missing required: {{ result.schema_validation.required.missing | join(', ') }}.</span>
-                                {% endif %}
-                                {% if result.schema_validation.expected.missing %}
-                                    <span>Missing expected detail: {{ result.schema_validation.expected.missing | join(', ') }}.</span>
-                                {% endif %}
-                            {% endif %}
-                            {% if result.identity_check %}
-                                {% if result.identity_check.ran and result.identity_check.passed %}
-                                    <span>Identity check passed.</span>
-                                {% elif result.identity_check.ran %}
-                                    <span>Identity check failed.</span>
-                                {% else %}
-                                    <span>Identity check skipped: {{ result.identity_check.skipped_reason }}.</span>
-                                {% endif %}
-                            {% endif %}
                         </div>
 
-                        {% if result.schema_validation and result.schema_validation.candidates %}
-                            <div class="empty-state empty-state--error">
-                                <strong>Review needed</strong>
-                                {% for candidate in result.schema_validation.candidates %}
-                                    {% set candidate_label = candidate.display_label or candidate.original_label %}
-                                    {% set approved_label = candidate.missing_required | replace('_', ' ') | title %}
-                                    <span>{{ candidate_label }} may be used as {{ approved_label }}.</span>
-                                    {% if candidate.review_message %}
-                                        <span>{{ candidate.review_message }}</span>
+                        {% if result.schema_validation %}
+                            {% if result.schema_validation.identity_ready %}
+                                <section class="validation-panel validation-panel--success" aria-label="Balance Sheet schema status">
+                                    <strong>Balance Sheet is ready for identity validation.</strong>
+                                </section>
+                            {% else %}
+                                <section class="validation-panel validation-panel--warning" aria-label="Balance Sheet schema status">
+                                    <strong>Balance Sheet is not ready for identity validation.</strong>
+                                    {% if result.schema_validation.required.missing %}
+                                        <div class="validation-panel__section">
+                                            <span class="validation-panel__label">Missing required fields</span>
+                                            <ul>
+                                                {% for field in result.schema_validation.required.missing %}
+                                                    <li>{{ field }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
                                     {% endif %}
-                                    <form method="post" action="{{ url_for('web.approve_balance_sheet_review_candidate') }}">
-                                        <input type="hidden" name="statement_type" value="balance_sheet">
-                                        <input type="hidden" name="row_position" value="{{ candidate.row_position }}">
-                                        <input type="hidden" name="canonical_label" value="{{ candidate.missing_required }}">
-                                        <button class="secondary-button" type="submit">Approve as {{ approved_label }}</button>
-                                    </form>
-                                {% endfor %}
-                            </div>
+                                    {% if result.schema_validation.candidates %}
+                                        <div class="validation-panel__section">
+                                            <span class="validation-panel__label">Suggested review</span>
+                                            {% for candidate in result.schema_validation.candidates %}
+                                                {% set candidate_label = candidate.display_label or candidate.original_label %}
+                                                {% set approved_label = candidate.missing_required | replace('_', ' ') | title %}
+                                                <div class="review-candidate">
+                                                    <div>
+                                                        <span>{{ candidate_label }} may be approved as {{ approved_label }}.</span>
+                                                        {% if candidate.review_message %}
+                                                            <span>{{ candidate.review_message }}</span>
+                                                        {% endif %}
+                                                    </div>
+                                                    <form method="post" action="{{ url_for('web.approve_balance_sheet_review_candidate') }}">
+                                                        <input type="hidden" name="statement_type" value="balance_sheet">
+                                                        <input type="hidden" name="row_position" value="{{ candidate.row_position }}">
+                                                        <input type="hidden" name="canonical_label" value="{{ candidate.missing_required }}">
+                                                        <button class="secondary-button" type="submit">Approve as {{ approved_label }}</button>
+                                                    </form>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <p>Identity check cannot run until required fields are mapped or approved.</p>
+                                </section>
+                            {% endif %}
+                        {% endif %}
+
+                        {% if result.identity_check %}
+                            {% if result.identity_check.ran and result.identity_check.passed %}
+                                <section class="validation-panel validation-panel--success" aria-label="Balance Sheet identity status">
+                                    <strong>Balance Sheet identity check passed.</strong>
+                                    <p>Assets equal Liabilities + Equity for all checked periods.</p>
+                                </section>
+                            {% elif result.identity_check.ran %}
+                                <section class="validation-panel validation-panel--error" aria-label="Balance Sheet identity status">
+                                    <strong>Balance Sheet identity check failed.</strong>
+                                    {% if result.identity_periods %}
+                                        <div class="identity-detail-table-wrap">
+                                            <table class="identity-detail-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Period</th>
+                                                        <th>Total Assets</th>
+                                                        <th>Total Liabilities</th>
+                                                        <th>Total Equity</th>
+                                                        <th>Liabilities + Equity</th>
+                                                        <th>Difference</th>
+                                                        <th>Result</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for period in result.identity_periods %}
+                                                        <tr>
+                                                            <th scope="row">{{ period.period }}</th>
+                                                            <td>{{ period.total_assets }}</td>
+                                                            <td>{{ period.total_liabilities }}</td>
+                                                            <td>{{ period.total_equity }}</td>
+                                                            <td>{{ period.liabilities_plus_equity }}</td>
+                                                            <td>{{ period.difference }}</td>
+                                                            <td>{{ "Pass" if period.passed else "Fail" }}</td>
+                                                        </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    {% endif %}
+                                </section>
+                            {% else %}
+                                <section class="validation-panel validation-panel--warning" aria-label="Balance Sheet identity status">
+                                    <strong>Identity check skipped.</strong>
+                                    <p>{{ result.identity_check.skipped_reason }}</p>
+                                </section>
+                            {% endif %}
                         {% endif %}
 
                         <div class="table-wrap table-wrap--compact">
