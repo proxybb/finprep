@@ -23,6 +23,7 @@ MAPPING_METADATA_COLUMNS = [
     "rollup_role",
     "review_reason",
     "includes_restricted_cash",
+    "expected_sign",
 ]
 
 _PUNCTUATION_PATTERN = re.compile(r"[^\w\s]")
@@ -48,8 +49,10 @@ def normalize_mapping_label(label: Any) -> str:
 
 def map_statement_rows(df: pd.DataFrame, statement_type: str) -> tuple[pd.DataFrame, list[dict]]:
     """Map cleaned statement rows to canonical metadata without changing values."""
-    if statement_type != "balance_sheet":
-        raise ValueError("Only balance_sheet mapping is implemented in this step.")
+    if statement_type not in ("balance_sheet", "income_statement"):
+        raise ValueError(
+            "Only balance_sheet and income_statement mapping is implemented in this step."
+        )
     if len(df.columns) == 0:
         raise ValueError("Mapping requires a DataFrame with at least one label column.")
 
@@ -83,17 +86,22 @@ def _metadata_for_label(
     statement_type: str,
     row_position: int,
 ) -> dict:
-    rule = _SPECIAL_ASSET_RULES.get(normalized_label)
-    if rule is None:
-        rule = _SPECIAL_EQUITY_RULES.get(normalized_label)
-    if rule is None:
-        rule = _SPECIAL_LIABILITY_RULES.get(normalized_label)
-    if rule is None:
-        rule = _AUTO_MAP_ASSET_RULES.get(normalized_label)
-    if rule is None:
-        rule = _AUTO_MAP_EQUITY_RULES.get(normalized_label)
-    if rule is None:
-        rule = _AUTO_MAP_LIABILITY_RULES.get(normalized_label)
+    if statement_type == "income_statement":
+        rule = _SPECIAL_IS_RULES.get(normalized_label)
+        if rule is None:
+            rule = _AUTO_MAP_IS_RULES.get(normalized_label)
+    else:
+        rule = _SPECIAL_ASSET_RULES.get(normalized_label)
+        if rule is None:
+            rule = _SPECIAL_EQUITY_RULES.get(normalized_label)
+        if rule is None:
+            rule = _SPECIAL_LIABILITY_RULES.get(normalized_label)
+        if rule is None:
+            rule = _AUTO_MAP_ASSET_RULES.get(normalized_label)
+        if rule is None:
+            rule = _AUTO_MAP_EQUITY_RULES.get(normalized_label)
+        if rule is None:
+            rule = _AUTO_MAP_LIABILITY_RULES.get(normalized_label)
 
     if rule is None:
         rule = {
@@ -109,13 +117,15 @@ def _metadata_for_label(
             "includes_restricted_cash": False,
         }
 
-    return {
+    metadata = {
         "original_label": original_label,
         "normalized_label": normalized_label,
         "statement_type": statement_type,
         "row_position": row_position,
         **rule,
     }
+    metadata.setdefault("expected_sign", None)
+    return metadata
 
 
 def _asset_rule(
@@ -163,6 +173,57 @@ def _auto_rule(
         concept_category=concept_category,
         concept_family=concept_family,
         rollup_role=rollup_role,
+    )
+
+
+def _is_rule(
+    *,
+    mapping_status: str,
+    canonical_label: str | None,
+    display_label: str | None,
+    matched_alias: str,
+    matched_rule_kind: str,
+    concept_category: str,
+    concept_family: str,
+    rollup_role: str,
+    review_reason: str | None = None,
+    expected_sign: str | None = None,
+) -> dict:
+    return {
+        "mapping_status": mapping_status,
+        "canonical_label": canonical_label,
+        "display_label": display_label,
+        "matched_alias": matched_alias,
+        "matched_rule_kind": matched_rule_kind,
+        "concept_category": concept_category,
+        "concept_family": concept_family,
+        "rollup_role": rollup_role,
+        "review_reason": review_reason,
+        "includes_restricted_cash": False,
+        "expected_sign": expected_sign,
+    }
+
+
+def _is_auto_rule(
+    *,
+    alias: str,
+    canonical_label: str,
+    display_label: str,
+    concept_family: str,
+    rollup_role: str,
+    concept_category: str = "reported_concept",
+    expected_sign: str | None = "as_reported",
+) -> dict:
+    return _is_rule(
+        mapping_status="auto_mapped",
+        canonical_label=canonical_label,
+        display_label=display_label,
+        matched_alias=alias,
+        matched_rule_kind="auto_alias",
+        concept_category=concept_category,
+        concept_family=concept_family,
+        rollup_role=rollup_role,
+        expected_sign=expected_sign,
     )
 
 
@@ -971,4 +1032,337 @@ _SPECIAL_LIABILITY_RULES.update(
             ("total debt", "total"),
         )
     }
+)
+
+_AUTO_MAP_IS_RULES = {
+    alias: _is_auto_rule(
+        alias=alias,
+        canonical_label="revenue",
+        display_label="Revenue",
+        concept_family="revenue",
+        rollup_role="total",
+    )
+    for alias in (
+        "revenue",
+        "revenues",
+        "net revenue",
+        "net revenues",
+        "total revenue",
+        "total revenues",
+        "net sales",
+    )
+}
+
+_AUTO_MAP_IS_RULES.update(
+    {
+        alias: _is_auto_rule(
+            alias=alias,
+            canonical_label="cogs",
+            display_label="Cost of Revenue",
+            concept_family="cost_of_revenue",
+            rollup_role="component",
+            expected_sign="negative",
+        )
+        for alias in (
+            "cost of revenue",
+            "cost of goods sold",
+            "cost of sales",
+        )
+    }
+)
+
+_AUTO_MAP_IS_RULES["gross profit"] = _is_auto_rule(
+    alias="gross profit",
+    canonical_label="gross_profit",
+    display_label="Gross Profit",
+    concept_family="gross_profit",
+    rollup_role="subtotal",
+)
+
+_AUTO_MAP_IS_RULES.update(
+    {
+        alias: _is_auto_rule(
+            alias=alias,
+            canonical_label="operating_expenses",
+            display_label="Operating Expenses",
+            concept_family="operating_expenses",
+            rollup_role="component",
+            expected_sign="negative",
+        )
+        for alias in (
+            "operating expenses",
+            "total operating expenses",
+        )
+    }
+)
+
+_AUTO_MAP_IS_RULES.update(
+    {
+        alias: _is_auto_rule(
+            alias=alias,
+            canonical_label="operating_income",
+            display_label="Operating Income",
+            concept_family="operating_income",
+            rollup_role="subtotal",
+        )
+        for alias in (
+            "operating income",
+            "operating profit",
+            "income from operations",
+            "profit from operations",
+            "operating earnings",
+            "ebit",
+        )
+    }
+)
+
+_AUTO_MAP_IS_RULES.update(
+    {
+        alias: _is_auto_rule(
+            alias=alias,
+            canonical_label="ebitda",
+            display_label="EBITDA",
+            concept_family="ebitda",
+            rollup_role="derived",
+            concept_category="management_defined_metric",
+        )
+        for alias in (
+            "ebitda",
+            "earnings before interest taxes depreciation and amortization",
+        )
+    }
+)
+
+_AUTO_MAP_IS_RULES.update(
+    {
+        alias: _is_auto_rule(
+            alias=alias,
+            canonical_label="net_income",
+            display_label="Net Income",
+            concept_family="net_income",
+            rollup_role="total",
+        )
+        for alias in (
+            "net income",
+            "net profit",
+            "net earnings",
+            "profit for the year",
+            "profit for the period",
+            "profit after tax",
+            "net income attributable to common stockholders",
+        )
+    }
+)
+
+_SPECIAL_IS_RULES: dict[str, dict] = {
+    "profit": _is_rule(
+        mapping_status="review_only",
+        canonical_label=None,
+        display_label="Profit",
+        matched_alias="profit",
+        matched_rule_kind="special_review",
+        concept_category="broad_label",
+        concept_family="net_income",
+        rollup_role="broad_unspecified",
+        review_reason="broad_profit_label",
+    ),
+    "opex": _is_rule(
+        mapping_status="review_only",
+        canonical_label=None,
+        display_label="Opex",
+        matched_alias="opex",
+        matched_rule_kind="special_review",
+        concept_category="broad_label",
+        concept_family="operating_expenses",
+        rollup_role="broad_unspecified",
+        review_reason="abbreviation_may_be_ambiguous",
+    ),
+}
+
+_SPECIAL_IS_RULES.update(
+    {
+        alias: _is_rule(
+            mapping_status="review_only",
+            canonical_label=None,
+            display_label=display_label,
+            matched_alias=alias,
+            matched_rule_kind="special_review",
+            concept_category="management_defined_metric",
+            concept_family="operating_income",
+            rollup_role="conditional",
+            review_reason="adjusted_metric_not_comparable",
+        )
+        for alias, display_label in (
+            ("underlying operating profit", "Underlying Operating Profit"),
+            ("non ifrs operating profit", "Non-IFRS Operating Profit"),
+            ("adjusted operating profit", "Adjusted Operating Profit"),
+        )
+    }
+)
+
+_SPECIAL_IS_RULES.update(
+    {
+        alias: _is_rule(
+            mapping_status="review_only",
+            canonical_label=None,
+            display_label=display_label,
+            matched_alias=alias,
+            matched_rule_kind="special_review",
+            concept_category="management_defined_metric",
+            concept_family="ebitda",
+            rollup_role="conditional",
+            review_reason="adjusted_metric_not_comparable",
+        )
+        for alias, display_label in (
+            ("adjusted ebitda", "Adjusted EBITDA"),
+            ("underlying ebitda", "Underlying EBITDA"),
+            ("ebitdaal", "EBITDAAL"),
+        )
+    }
+)
+
+_SPECIAL_IS_RULES["gross margin"] = _is_rule(
+    mapping_status="review_only",
+    canonical_label=None,
+    display_label="Gross Margin",
+    matched_alias="gross margin",
+    matched_rule_kind="special_review",
+    concept_category="ratio_metric",
+    concept_family="gross_profit",
+    rollup_role="none",
+    review_reason="ratio_metric_not_a_line_item",
+)
+
+_SPECIAL_IS_RULES["service revenue"] = _is_rule(
+    mapping_status="review_only",
+    canonical_label=None,
+    display_label="Service Revenue",
+    matched_alias="service revenue",
+    matched_rule_kind="special_review",
+    concept_category="conditional_label",
+    concept_family="revenue",
+    rollup_role="conditional",
+    review_reason="segment_or_partial_revenue",
+)
+
+_SPECIAL_IS_RULES.update(
+    {
+        alias: _is_rule(
+            mapping_status="review_only",
+            canonical_label=None,
+            display_label=display_label,
+            matched_alias=alias,
+            matched_rule_kind="special_review",
+            concept_category="conditional_label",
+            concept_family="net_income",
+            rollup_role="conditional",
+            review_reason="partial_attribution_may_not_equal_net_income",
+        )
+        for alias, display_label in (
+            ("profit from continuing operations", "Profit from Continuing Operations"),
+            ("profit attributable to owners", "Profit Attributable to Owners"),
+        )
+    }
+)
+
+_SPECIAL_IS_RULES["profit before tax"] = _is_rule(
+    mapping_status="deferred",
+    canonical_label=None,
+    display_label=None,
+    matched_alias="profit before tax",
+    matched_rule_kind="special_review",
+    concept_category="deferred_canonical",
+    concept_family="pre_tax_income",
+    rollup_role="subtotal",
+    review_reason="pre_tax_income_not_supported_yet",
+)
+
+_SPECIAL_IS_RULES["total comprehensive income"] = _is_rule(
+    mapping_status="deferred",
+    canonical_label=None,
+    display_label=None,
+    matched_alias="total comprehensive income",
+    matched_rule_kind="special_review",
+    concept_category="deferred_canonical",
+    concept_family="comprehensive_income",
+    rollup_role="total",
+    review_reason="comprehensive_income_not_supported_yet",
+)
+
+_SPECIAL_IS_RULES.update(
+    {
+        alias: _is_rule(
+            mapping_status="deferred",
+            canonical_label=None,
+            display_label=None,
+            matched_alias=alias,
+            matched_rule_kind="special_review",
+            concept_category="deferred_canonical",
+            concept_family="other_items",
+            rollup_role="component",
+            review_reason="other_items_not_supported_yet",
+        )
+        for alias in (
+            "other income",
+            "other expenses",
+        )
+    }
+)
+
+_SPECIAL_IS_RULES.update(
+    {
+        alias: _is_rule(
+            mapping_status="deferred",
+            canonical_label=None,
+            display_label=None,
+            matched_alias=alias,
+            matched_rule_kind="special_review",
+            concept_category="deferred_canonical",
+            concept_family="operating_expenses_detail",
+            rollup_role="component",
+            review_reason="operating_expense_detail_not_supported_yet",
+        )
+        for alias in (
+            "selling general and administrative",
+            "administrative expenses",
+            "distribution costs",
+            "research and development",
+        )
+    }
+)
+
+_SPECIAL_IS_RULES["depreciation and amortization"] = _is_rule(
+    mapping_status="deferred",
+    canonical_label=None,
+    display_label=None,
+    matched_alias="depreciation and amortization",
+    matched_rule_kind="special_review",
+    concept_category="deferred_canonical",
+    concept_family="non_cash_charges",
+    rollup_role="component",
+    review_reason="depreciation_and_amortization_not_supported_yet",
+)
+
+_SPECIAL_IS_RULES["interest expense"] = _is_rule(
+    mapping_status="deferred",
+    canonical_label=None,
+    display_label=None,
+    matched_alias="interest expense",
+    matched_rule_kind="special_review",
+    concept_category="deferred_canonical",
+    concept_family="finance_costs",
+    rollup_role="component",
+    review_reason="interest_expense_not_supported_yet",
+)
+
+_SPECIAL_IS_RULES["tax expense"] = _is_rule(
+    mapping_status="deferred",
+    canonical_label=None,
+    display_label=None,
+    matched_alias="tax expense",
+    matched_rule_kind="special_review",
+    concept_category="deferred_canonical",
+    concept_family="tax_expense",
+    rollup_role="component",
+    review_reason="tax_expense_not_supported_yet",
 )

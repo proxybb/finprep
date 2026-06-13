@@ -10,6 +10,12 @@ def _map_labels(labels):
     return mapped_df, audit_records
 
 
+def _map_labels_is(labels):
+    df = pd.DataFrame({"line_item": labels, "2022": [100] * len(labels)})
+    mapped_df, audit_records = map_statement_rows(df, "income_statement")
+    return mapped_df, audit_records
+
+
 def test_auto_maps_core_balance_sheet_asset_labels():
     mapped_df, _ = _map_labels(
         [
@@ -134,11 +140,14 @@ def test_no_fuzzy_matching():
     assert mapped_df["canonical_label"].isna().all()
 
 
-@pytest.mark.parametrize("statement_type", ["income_statement", "cash_flow_statement"])
+@pytest.mark.parametrize("statement_type", ["cash_flow_statement"])
 def test_invalid_or_unsupported_statement_type_raises_value_error(statement_type):
     df = pd.DataFrame({"line_item": ["total assets"], "2022": [100]})
 
-    with pytest.raises(ValueError, match="Only balance_sheet mapping is implemented"):
+    with pytest.raises(
+        ValueError,
+        match="Only balance_sheet and income_statement mapping is implemented",
+    ):
         map_statement_rows(df, statement_type)
 
 
@@ -560,3 +569,176 @@ def test_duplicate_total_equity_mappings_are_preserved():
         "total_equity",
         "total_equity",
     ]
+
+
+def test_is_auto_maps_core_income_statement_labels():
+    mapped_df, _ = _map_labels_is(
+        [
+            "revenue",
+            "cost of revenue",
+            "gross profit",
+            "operating expenses",
+            "operating income",
+            "ebit",
+            "ebitda",
+            "net income",
+        ]
+    )
+
+    assert mapped_df["mapping_status"].tolist() == ["auto_mapped"] * 8
+    assert mapped_df["canonical_label"].tolist() == [
+        "revenue",
+        "cogs",
+        "gross_profit",
+        "operating_expenses",
+        "operating_income",
+        "operating_income",
+        "ebitda",
+        "net_income",
+    ]
+    assert mapped_df["display_label"].tolist() == [
+        "Revenue",
+        "Cost of Revenue",
+        "Gross Profit",
+        "Operating Expenses",
+        "Operating Income",
+        "Operating Income",
+        "EBITDA",
+        "Net Income",
+    ]
+
+
+def test_is_expected_sign_for_auto_mapped_rows():
+    mapped_df, _ = _map_labels_is(
+        [
+            "revenue",
+            "cost of revenue",
+            "cost of goods sold",
+            "gross profit",
+            "operating expenses",
+            "total operating expenses",
+            "operating income",
+            "ebitda",
+            "net income",
+        ]
+    )
+
+    assert mapped_df.loc[0, "expected_sign"] == "as_reported"
+    assert mapped_df.loc[1, "expected_sign"] == "negative"
+    assert mapped_df.loc[2, "expected_sign"] == "negative"
+    assert mapped_df.loc[3, "expected_sign"] == "as_reported"
+    assert mapped_df.loc[4, "expected_sign"] == "negative"
+    assert mapped_df.loc[5, "expected_sign"] == "negative"
+    assert mapped_df.loc[6, "expected_sign"] == "as_reported"
+    assert mapped_df.loc[7, "expected_sign"] == "as_reported"
+    assert mapped_df.loc[8, "expected_sign"] == "as_reported"
+
+
+def test_is_review_only_labels():
+    mapped_df, _ = _map_labels_is(
+        [
+            "gross margin",
+            "profit",
+            "opex",
+            "service revenue",
+            "profit from continuing operations",
+        ]
+    )
+
+    assert mapped_df["mapping_status"].tolist() == ["review_only"] * 5
+    assert mapped_df.loc[0, "concept_category"] == "ratio_metric"
+    assert mapped_df.loc[1, "concept_family"] == "net_income"
+    assert mapped_df.loc[2, "concept_family"] == "operating_expenses"
+    assert mapped_df.loc[3, "concept_family"] == "revenue"
+    assert mapped_df.loc[4, "concept_family"] == "net_income"
+    assert mapped_df["expected_sign"].isna().all()
+
+
+def test_is_adjusted_variants_are_review_only_not_auto_mapped():
+    mapped_df, _ = _map_labels_is(
+        [
+            "adjusted ebitda",
+            "underlying ebitda",
+            "adjusted operating profit",
+        ]
+    )
+
+    assert mapped_df["mapping_status"].tolist() == ["review_only"] * 3
+    assert mapped_df["concept_category"].tolist() == ["management_defined_metric"] * 3
+    assert not (mapped_df["canonical_label"] == "ebitda").any()
+    assert not (mapped_df["canonical_label"] == "operating_income").any()
+    assert mapped_df["expected_sign"].isna().all()
+
+
+def test_is_deferred_labels():
+    mapped_df, _ = _map_labels_is(
+        [
+            "profit before tax",
+            "total comprehensive income",
+            "selling general and administrative",
+            "depreciation and amortization",
+            "interest expense",
+            "tax expense",
+        ]
+    )
+
+    assert mapped_df["mapping_status"].tolist() == ["deferred"] * 6
+    assert mapped_df["expected_sign"].isna().all()
+
+
+def test_is_operating_income_aliases():
+    mapped_df, _ = _map_labels_is(
+        [
+            "operating income",
+            "operating profit",
+            "income from operations",
+            "profit from operations",
+            "operating earnings",
+            "ebit",
+        ]
+    )
+
+    assert mapped_df["mapping_status"].tolist() == ["auto_mapped"] * 6
+    assert (mapped_df["canonical_label"] == "operating_income").all()
+    assert (mapped_df["expected_sign"] == "as_reported").all()
+
+
+def test_is_statement_type_isolation():
+    revenue_in_bs, _ = _map_labels(["revenue"])
+    total_assets_in_is, _ = _map_labels_is(["total assets"])
+
+    assert revenue_in_bs.loc[0, "mapping_status"] == "unmapped"
+    assert pd.isna(revenue_in_bs.loc[0, "canonical_label"])
+
+    assert total_assets_in_is.loc[0, "mapping_status"] == "unmapped"
+    assert pd.isna(total_assets_in_is.loc[0, "canonical_label"])
+
+
+def test_is_preserves_rows_and_values():
+    df = pd.DataFrame(
+        {
+            "line_item": ["revenue", "unknown is label", "net income"],
+            "2022": [1000, 50, 200],
+            "2023": [1100, 60, 220],
+        }
+    )
+
+    mapped_df, _ = map_statement_rows(df, "income_statement")
+
+    assert len(mapped_df.index) == len(df.index)
+    assert mapped_df["line_item"].tolist() == df["line_item"].tolist()
+    assert mapped_df["2022"].tolist() == [1000, 50, 200]
+    assert mapped_df["2023"].tolist() == [1100, 60, 220]
+
+
+def test_bs_expected_sign_is_null():
+    mapped_df, _ = _map_labels(
+        [
+            "cash and cash equivalents",
+            "total assets",
+            "total liabilities",
+            "total equity",
+        ]
+    )
+
+    assert mapped_df["expected_sign"].isna().all()
