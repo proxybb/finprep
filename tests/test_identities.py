@@ -146,6 +146,23 @@ def test_user_approved_rows_are_used_for_identity_check():
     assert result["periods"][0]["total_equity"] == 600
 
 
+def test_user_override_rows_are_used_for_identity_check():
+    result = check_balance_sheet_identity(
+        _mapped_df(
+            [
+                _row("total_assets", **{"2023": 1000}),
+                _row("total_liabilities", **{"2023": 400}),
+                _row("total_equity", mapping_status="user_override", **{"2023": 600}),
+            ]
+        ),
+        _schema(),
+    )
+
+    assert result["ran"] is True
+    assert result["passed"] is True
+    assert result["periods"][0]["total_equity"] == 600
+
+
 def test_duplicate_canonical_rows_skip_cleanly():
     result = check_balance_sheet_identity(
         _mapped_df(
@@ -161,6 +178,24 @@ def test_duplicate_canonical_rows_skip_cleanly():
 
     assert result["ran"] is False
     assert result["skipped_reason"] == "duplicate trusted rows for total_assets"
+    assert result["errors"][0]["code"] == "duplicate_canonical_rows"
+
+
+def test_duplicate_user_override_rows_skip_cleanly():
+    result = check_balance_sheet_identity(
+        _mapped_df(
+            [
+                _row("total_assets", **{"2023": 1000}),
+                _row("total_liabilities", **{"2023": 400}),
+                _row("total_equity", mapping_status="user_override", **{"2023": 600}),
+                _row("total_equity", mapping_status="user_override", **{"2023": 600}),
+            ]
+        ),
+        _schema(),
+    )
+
+    assert result["ran"] is False
+    assert result["skipped_reason"] == "duplicate trusted rows for total_equity"
     assert result["errors"][0]["code"] == "duplicate_canonical_rows"
 
 

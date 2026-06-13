@@ -1531,3 +1531,88 @@ fullscreen table area.
 Manually review the cleaned preview in a browser with passing, failing, skipped,
 and approval Balance Sheet examples before designing the broader analyst review
 gate.
+
+## 36. Controlled Balance Sheet required-field overrides
+
+### What changed
+
+A narrow Balance Sheet override workflow was added for missing required fields:
+`total_assets`, `total_liabilities`, and `total_equity`. Users can enter
+period values for a missing required field, save the override, and return to
+the cleaned preview where schema validation and identity checks rerun from the
+rebuilt pipeline.
+
+### Files touched
+
+- `cleaning/approvals.py`
+- `cleaning/schema.py`
+- `cleaning/identities.py`
+- `web/routes.py`
+- `web/templates/cleaned_data.html`
+- `web/static/css/main.css`
+- `tests/test_approvals.py`
+- `tests/test_schema.py`
+- `tests/test_identities.py`
+- `tests/test_routes.py`
+- `notes.md`
+
+### Why it changed
+
+Some uploaded Balance Sheets may be missing one of the strict required identity
+rows even though the user knows the correct period values. The app needed a
+controlled way to supply only those missing required fields without opening a
+general table editor or changing mapping, cleaning, orientation, or raw preview
+behavior.
+
+### Current override behavior
+
+- The cleaned Balance Sheet page shows compact override forms only for required
+  fields currently missing after mapping and approvals.
+- Each override form has one numeric input per detected Balance Sheet period.
+- `POST /data/review/override` validates the statement, canonical label,
+  current missing-field status, period names, and numeric values.
+- Valid overrides are stored under
+  `metadata["overrides"]["balance_sheet"]` in the current temp upload metadata.
+- `/data/cleaned` rebuilds from scratch in this order: clean, map, apply
+  approvals, apply overrides, validate schema, check identity.
+- Override rows render in the default cleaned table with readable display
+  labels such as `Total Equity`; backend metadata remains hidden from the
+  table.
+- Clearing uploaded data removes overrides because the current temp upload
+  directory and metadata are deleted.
+
+### Difference between approval and override
+
+Approval promotes an existing `review_only` mapped source row, such as
+Stockholders Equity, to a trusted required canonical when the user accepts the
+candidate. Override creates a new trusted required row from user-entered period
+values when the required canonical is missing. Neither workflow allows arbitrary
+row editing.
+
+### Validation and identity trust rules
+
+- Schema validation now trusts `auto_mapped`, `user_approved`, and
+  `user_override` rows for required Balance Sheet fields.
+- The Balance Sheet identity check now uses `auto_mapped`, `user_approved`,
+  and `user_override` rows.
+- Overrides are rejected for labels outside `total_assets`,
+  `total_liabilities`, and `total_equity`.
+- Overrides are not added when the same required field already has an
+  `auto_mapped` or `user_approved` row.
+- Duplicate trusted required rows are not aggregated silently; identity
+  checking returns the existing clean duplicate trusted-row skipped result.
+
+### Known limitations
+
+- Overrides are temporary upload/session metadata, not SQL persistence.
+- There is no arbitrary label override, free-form table editing, or full
+  analyst review gate.
+- Income Statement and Cash Flow mapping, schema validation, identity checks,
+  and overrides remain unimplemented.
+- Invalid override submissions redirect back without storing changes; there is
+  no visible flash/status message yet.
+
+### Next suggested step
+
+Add a visible non-blocking status message for rejected override submissions, then
+design the broader analyst review gate and audit trail before persistence.

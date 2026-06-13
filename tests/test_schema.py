@@ -228,6 +228,25 @@ def test_user_approved_required_field_satisfies_schema_readiness():
 
     assert result["identity_ready"] is True
     assert "total_equity" in result["required"]["present"]
+
+
+def test_user_override_required_field_satisfies_schema_readiness():
+    result = validate_balance_sheet_schema(
+        _mapped_df(
+            [
+                _row("total_assets"),
+                _row("total_liabilities"),
+                _row(
+                    "total_equity",
+                    mapping_status="user_override",
+                    original_label="User override: Total Equity",
+                ),
+            ]
+        )
+    )
+
+    assert result["identity_ready"] is True
+    assert "total_equity" in result["required"]["present"]
     assert result["required"]["missing"] == []
 
 

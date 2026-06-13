@@ -1,3 +1,4 @@
+import json
 from io import BytesIO
 from pathlib import Path
 
@@ -70,6 +71,14 @@ def _balance_sheet_failing_identity_csv() -> BytesIO:
         b'Total Assets,"$1,000"\n'
         b'Total Liabilities,"$400"\n'
         b'Total Equity,"$500"\n'
+    )
+
+
+def _balance_sheet_missing_equity_single_period_csv() -> BytesIO:
+    return BytesIO(
+        b"Line Item,2023\n"
+        b'Total Assets,"$1,000"\n'
+        b'Total Liabilities,"$400"\n'
     )
 
 
@@ -204,7 +213,8 @@ def test_uploading_only_balance_sheet_then_cleaned_preview_succeeds():
     assert "Income Statement cleaned preview" in html
     assert "No uploaded file for Income Statement." in html
     assert "No uploaded file for Cash Flow Statement." in html
-    assert "canonical_label" not in html
+    table_card = _extract_expandable_table_card(html, "balance.csv")
+    assert "canonical_label" not in table_card
     assert "1000" in html
     assert "$1,000" not in html
 
@@ -831,7 +841,16 @@ def test_balance_sheet_cleaned_preview_shows_missing_required_schema_status():
     assert "Balance Sheet is not ready for identity validation." in html
     assert "Missing required fields" in html
     assert "total_equity" in html
-    assert "Identity check cannot run until required fields are mapped or approved." in html
+    assert "Required-field override" in html
+    assert 'action="/data/review/override"' in html
+    assert 'name="canonical_label" value="total_equity"' in html
+    assert 'name="period_0" value="2022"' in html
+    assert 'name="period_1" value="2023"' in html
+    assert "Apply override" in html
+    assert (
+        "Identity check cannot run until required fields are mapped, approved, or overridden."
+        in html
+    )
     assert "Identity check skipped." in html
     assert "missing required fields: total_equity" in html
     assert "Total Assets" in html
@@ -886,6 +905,168 @@ def test_balance_sheet_cleaned_preview_shows_skipped_identity_status():
     assert "validation-panel" not in table_card
     assert "Identity check skipped." not in table_card
     assert "missing required fields: total_equity" not in table_card
+
+
+def test_submitting_balance_sheet_override_reruns_schema_and_passing_identity():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={
+            "balance_sheet": (
+                _balance_sheet_missing_equity_single_period_csv(),
+                "override-pass.csv",
+            )
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+    assert "Apply override" in client.get("/data/cleaned").get_data(as_text=True)
+
+    with client.session_transaction() as session:
+        upload_id = session.get("current_upload_id")
+
+    override_response = client.post(
+        "/data/review/override",
+        data={
+            "statement_type": "balance_sheet",
+            "canonical_label": "total_equity",
+            "period_count": "1",
+            "period_0": "2023",
+            "value_0": "600",
+        },
+    )
+
+    assert override_response.status_code == 302
+    assert override_response.headers["Location"].endswith("/data/cleaned")
+    metadata = json.loads(
+        Path("data/temp_uploads", upload_id, "metadata.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert metadata["overrides"]["balance_sheet"] == [
+        {
+            "canonical_label": "total_equity",
+            "reason": "User-entered required-field override",
+            "values": {"2023": 600},
+        }
+    ]
+
+    response = client.get("/data/cleaned")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "override-pass.csv" in html
+    assert "Balance Sheet is ready for identity validation." in html
+    assert "Balance Sheet identity check passed." in html
+    assert "Total Equity" in html
+    assert "Apply override" not in html
+    assert "user_override" not in html
+    assert "User override: Total Equity" not in html
+
+
+def test_submitting_balance_sheet_override_can_fail_identity():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={
+            "balance_sheet": (
+                _balance_sheet_missing_equity_single_period_csv(),
+                "override-fail.csv",
+            )
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    override_response = client.post(
+        "/data/review/override",
+        data={
+            "statement_type": "balance_sheet",
+            "canonical_label": "total_equity",
+            "period_count": "1",
+            "period_0": "2023",
+            "value_0": "500",
+        },
+    )
+
+    assert override_response.status_code == 302
+
+    response = client.get("/data/cleaned")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "override-fail.csv" in html
+    assert "Balance Sheet is ready for identity validation." in html
+    assert "Balance Sheet identity check failed." in html
+    assert "1,000" in html
+    assert "400" in html
+    assert "500" in html
+    assert "900" in html
+    assert "100" in html
+    assert "Fail" in html
+
+
+def test_balance_sheet_override_invalid_canonical_label_does_not_alter_results():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={
+            "balance_sheet": (
+                _balance_sheet_missing_equity_single_period_csv(),
+                "override-invalid.csv",
+            )
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    with client.session_transaction() as session:
+        upload_id = session.get("current_upload_id")
+
+    override_response = client.post(
+        "/data/review/override",
+        data={
+            "statement_type": "balance_sheet",
+            "canonical_label": "revenue",
+            "period_count": "1",
+            "period_0": "2023",
+            "value_0": "600",
+        },
+    )
+
+    assert override_response.status_code == 302
+    metadata = (Path("data/temp_uploads", upload_id, "metadata.json")).read_text(
+        encoding="utf-8"
+    )
+    assert "overrides" not in metadata
+
+    html = client.get("/data/cleaned").get_data(as_text=True)
+    assert "override-invalid.csv" in html
+    assert "Balance Sheet is not ready for identity validation." in html
+    assert "Identity check skipped." in html
+    assert "missing required fields: total_equity" in html
+
+
+def test_balance_sheet_auto_mapped_required_field_hides_override_input():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={"balance_sheet": (_balance_sheet_mapping_csv(), "no-override.csv")},
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "no-override.csv" in html
+    assert "Balance Sheet is ready for identity validation." in html
+    assert "Required-field override" not in html
+    assert 'action="/data/review/override"' not in html
+    assert 'name="canonical_label" value="total_equity"' not in html
 
 
 def test_balance_sheet_cleaned_preview_shows_failing_identity_status():
@@ -951,7 +1132,11 @@ def test_balance_sheet_review_panel_shows_required_field_candidate():
     assert "Stockholders Equity may be approved as Total Equity." in html
     assert "Owner-only equity may exclude non-controlling interests." in html
     assert "Approve as Total Equity" in html
-    assert "Identity check cannot run until required fields are mapped or approved." in html
+    assert "Apply override" in html
+    assert (
+        "Identity check cannot run until required fields are mapped, approved, or overridden."
+        in html
+    )
     assert 'name="row_position" value="2"' in html
     review_index = html.index("review-candidate")
     table_card_start = html.index(
@@ -1122,6 +1307,42 @@ def test_approval_route_does_not_affect_income_or_cash_flow():
     assert "total_equity" not in html
 
 
+def test_override_route_does_not_affect_income_or_cash_flow():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={
+            "income_statement": (_csv_file(b"Revenue"), "income-override.csv"),
+            "cash_flow_statement": (_csv_file(b"Operating Cash Flow"), "cash-override.csv"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    override_response = client.post(
+        "/data/review/override",
+        data={
+            "statement_type": "balance_sheet",
+            "canonical_label": "total_equity",
+            "period_count": "1",
+            "period_0": "2023",
+            "value_0": "600",
+        },
+    )
+    assert override_response.status_code == 302
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "income-override.csv" in html
+    assert "cash-override.csv" in html
+    assert "canonical_label" not in html
+    assert "user_override" not in html
+    assert "total_equity" not in html
+
+
 def test_clear_uploaded_data_clears_approval_state():
     client = _client()
 
@@ -1170,6 +1391,59 @@ def test_clear_uploaded_data_clears_approval_state():
     assert "approved-after-clear.csv" in html
     assert "Balance Sheet is not ready for identity validation." in html
     assert "Approve as Total Equity" in html
+
+
+def test_clear_uploaded_data_clears_override_state():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={
+            "balance_sheet": (
+                _balance_sheet_missing_equity_single_period_csv(),
+                "override-before-clear.csv",
+            )
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    override_response = client.post(
+        "/data/review/override",
+        data={
+            "statement_type": "balance_sheet",
+            "canonical_label": "total_equity",
+            "period_count": "1",
+            "period_0": "2023",
+            "value_0": "600",
+        },
+    )
+    assert override_response.status_code == 302
+    assert "Balance Sheet identity check passed." in client.get("/data/cleaned").get_data(as_text=True)
+
+    clear_response = client.post("/data/clear")
+    assert clear_response.status_code == 302
+
+    new_upload_response = client.post(
+        "/data/upload",
+        data={
+            "balance_sheet": (
+                _balance_sheet_missing_equity_single_period_csv(),
+                "override-after-clear.csv",
+            )
+        },
+        content_type="multipart/form-data",
+    )
+    assert new_upload_response.status_code == 200
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "override-after-clear.csv" in html
+    assert "Balance Sheet is not ready for identity validation." in html
+    assert "Balance Sheet identity check passed." not in html
+    assert "Apply override" in html
 
 
 def test_cleaned_data_with_no_current_upload_shows_empty_state():

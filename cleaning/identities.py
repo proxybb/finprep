@@ -17,7 +17,11 @@ BALANCE_SHEET_IDENTITY_FIELDS = [
     "total_liabilities",
     "total_equity",
 ]
-TRUSTED_BALANCE_SHEET_IDENTITY_STATUSES = {"auto_mapped", "user_approved"}
+TRUSTED_BALANCE_SHEET_IDENTITY_STATUSES = {
+    "auto_mapped",
+    "user_approved",
+    "user_override",
+}
 NON_PERIOD_COLUMNS = set(MAPPING_METADATA_COLUMNS) | {
     "line_item",
     "label",

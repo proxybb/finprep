@@ -11,11 +11,15 @@ import pandas as pd
 from flask import Blueprint, redirect, render_template, request, session, url_for
 from werkzeug.utils import secure_filename
 
-from cleaning.approvals import apply_balance_sheet_approvals
+from cleaning.approvals import (
+    BALANCE_SHEET_DISPLAY_LABELS,
+    apply_balance_sheet_approvals,
+    apply_balance_sheet_overrides,
+)
 from cleaning.ingest import IngestionError, read_uploaded_file
 from cleaning.identities import check_balance_sheet_identity
 from cleaning.mapping import MAPPING_METADATA_COLUMNS, map_statement_rows
-from cleaning.mechanical import run_mechanical_cleaning
+from cleaning.mechanical import clean_numeric_value, run_mechanical_cleaning
 from cleaning.orientation import normalize_orientation
 from cleaning.schema import REQUIRED_BALANCE_SHEET_FIELDS, validate_balance_sheet_schema
 from cleaning.table_boundary import normalize_table_boundary
@@ -27,6 +31,7 @@ PREVIEW_ROW_LIMIT = 50
 TEMP_UPLOAD_ROOT = Path("data/temp_uploads")
 UPLOAD_METADATA_FILENAME = "metadata.json"
 BALANCE_SHEET_APPROVAL_KEY = "balance_sheet"
+BALANCE_SHEET_OVERRIDE_KEY = "balance_sheet"
 STATEMENTS = [
     {
         "key": "income",
@@ -113,6 +118,13 @@ def _balance_sheet_approvals(metadata: dict) -> list[dict[str, Any]]:
     return []
 
 
+def _balance_sheet_overrides(metadata: dict) -> list[dict[str, Any]]:
+    overrides = metadata.get("overrides", {}).get(BALANCE_SHEET_OVERRIDE_KEY, [])
+    if isinstance(overrides, list):
+        return overrides
+    return []
+
+
 def _store_balance_sheet_approval(
     upload_id: str | None,
     row_position: Any,
@@ -146,6 +158,102 @@ def _store_balance_sheet_approval(
     ]
     approvals.append(approval)
     _save_upload_metadata(upload_id, metadata)
+
+
+def _store_balance_sheet_override(
+    upload_id: str | None,
+    canonical_label: Any,
+    form_data: Any,
+) -> None:
+    if not upload_id or canonical_label not in REQUIRED_BALANCE_SHEET_FIELDS:
+        return
+
+    metadata = _load_upload_metadata(upload_id)
+    if not metadata.get("statements", {}).get("balance"):
+        return
+
+    missing_required, period_columns = _balance_sheet_missing_required_fields(
+        upload_id,
+        metadata,
+    )
+    if canonical_label not in missing_required:
+        return
+
+    values = _override_values_from_form(form_data, period_columns)
+    if not values:
+        return
+
+    overrides = metadata.setdefault("overrides", {}).setdefault(
+        BALANCE_SHEET_OVERRIDE_KEY,
+        [],
+    )
+    override = {
+        "canonical_label": canonical_label,
+        "values": values,
+        "reason": "User-entered required-field override",
+    }
+    overrides[:] = [
+        existing
+        for existing in overrides
+        if existing.get("canonical_label") != canonical_label
+    ]
+    overrides.append(override)
+    _save_upload_metadata(upload_id, metadata)
+
+
+def _override_values_from_form(form_data: Any, period_columns: list[Any]) -> dict[str, Any]:
+    allowed_periods = {str(period) for period in period_columns}
+    values = {}
+
+    try:
+        period_count = int(form_data.get("period_count", 0))
+    except (TypeError, ValueError):
+        return {}
+
+    for index in range(period_count):
+        period = str(form_data.get(f"period_{index}", "")).strip()
+        raw_value = form_data.get(f"value_{index}")
+        if period not in allowed_periods or raw_value is None or str(raw_value).strip() == "":
+            continue
+
+        numeric_value = clean_numeric_value(raw_value)
+        if not isinstance(numeric_value, (int, float)) or isinstance(numeric_value, bool):
+            return {}
+        values[period] = numeric_value
+
+    return values
+
+
+def _balance_sheet_missing_required_fields(
+    upload_id: str,
+    metadata: dict,
+) -> tuple[list[str], list[Any]]:
+    metadata_entry = metadata.get("statements", {}).get("balance")
+    if not metadata_entry:
+        return [], []
+
+    try:
+        raw_df = _read_saved_statement(upload_id, metadata_entry)
+        cleaning_result = run_mechanical_cleaning(raw_df)
+        cleaned_df = cleaning_result["cleaned_df"]
+        boundary_result = normalize_table_boundary(cleaned_df)
+        orientation_result = normalize_orientation(boundary_result.dataframe)
+        mapped_df, _mapping_audit = map_statement_rows(
+            orientation_result.dataframe,
+            "balance_sheet",
+        )
+        approved_df = apply_balance_sheet_approvals(
+            mapped_df,
+            _balance_sheet_approvals(metadata),
+        )
+        schema_validation = validate_balance_sheet_schema(approved_df)
+    except (IngestionError, OSError, KeyError, ValueError):
+        return [], []
+
+    missing = schema_validation.get("required", {}).get("missing", [])
+    if not isinstance(missing, list):
+        missing = []
+    return missing, _balance_sheet_period_columns(approved_df)
 
 
 def _save_uploaded_file(upload_id: str, statement: dict, uploaded_file) -> dict:
@@ -259,6 +367,52 @@ def _balance_sheet_display_df(mapped_df: pd.DataFrame) -> pd.DataFrame:
         )
     ]
     return display_df
+
+
+def _balance_sheet_period_columns(mapped_df: pd.DataFrame) -> list[Any]:
+    non_period_columns = set(MAPPING_METADATA_COLUMNS) | {
+        "line_item",
+        "label",
+        "labels",
+        "account",
+        "accounts",
+        "item",
+        "description",
+    }
+    period_columns = []
+    for column in mapped_df.columns:
+        if str(column).strip().lower() in non_period_columns:
+            continue
+        if column == mapped_df.columns[0]:
+            continue
+        period_columns.append(column)
+    return period_columns
+
+
+def _build_override_forms(
+    schema_validation: dict[str, Any] | None,
+    mapped_df: pd.DataFrame,
+) -> list[dict[str, Any]]:
+    if not isinstance(schema_validation, dict):
+        return []
+
+    missing_required = schema_validation.get("required", {}).get("missing", [])
+    if not isinstance(missing_required, list):
+        return []
+
+    period_columns = _balance_sheet_period_columns(mapped_df)
+    if not period_columns:
+        return []
+
+    return [
+        {
+            "canonical_label": field,
+            "display_label": BALANCE_SHEET_DISPLAY_LABELS[field],
+            "periods": [str(period) for period in period_columns],
+        }
+        for field in missing_required
+        if field in REQUIRED_BALANCE_SHEET_FIELDS
+    ]
 
 
 def _format_identity_number(value: Any) -> str:
@@ -407,6 +561,7 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
             preview_df = orientation_result.dataframe
             schema_validation = None
             identity_check = None
+            override_forms = []
             display_df = preview_df
             if statement["field_name"] == "balance_sheet":
                 preview_df, _mapping_audit = map_statement_rows(preview_df, "balance_sheet")
@@ -414,8 +569,13 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
                     preview_df,
                     _balance_sheet_approvals(metadata),
                 )
+                preview_df = apply_balance_sheet_overrides(
+                    preview_df,
+                    _balance_sheet_overrides(metadata),
+                )
                 schema_validation = validate_balance_sheet_schema(preview_df)
                 identity_check = check_balance_sheet_identity(preview_df, schema_validation)
+                override_forms = _build_override_forms(schema_validation, preview_df)
                 display_df = _balance_sheet_display_df(preview_df)
 
             results[statement["key"]] = {
@@ -435,6 +595,7 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
                 "schema_validation": schema_validation,
                 "identity_check": identity_check,
                 "identity_periods": _build_identity_period_display(identity_check),
+                "override_forms": override_forms,
             }
         except (IngestionError, OSError, KeyError, ValueError) as exc:
             results[statement["key"]] = {
@@ -445,6 +606,7 @@ def _build_cleaned_results(upload_id: str | None) -> dict:
                 "schema_validation": None,
                 "identity_check": None,
                 "identity_periods": [],
+                "override_forms": [],
             }
 
     return results
@@ -493,6 +655,18 @@ def approve_balance_sheet_review_candidate():
             session.get("current_upload_id"),
             request.form.get("row_position"),
             request.form.get("canonical_label"),
+        )
+    return redirect(url_for("web.cleaned_data"))
+
+
+@bp.route("/data/review/override", methods=["POST"])
+def override_balance_sheet_required_field():
+    """Store a controlled Balance Sheet required-field override."""
+    if request.form.get("statement_type") == "balance_sheet":
+        _store_balance_sheet_override(
+            session.get("current_upload_id"),
+            request.form.get("canonical_label"),
+            request.form,
         )
     return redirect(url_for("web.cleaned_data"))
 

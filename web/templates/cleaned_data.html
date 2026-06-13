@@ -105,7 +105,32 @@
                                             {% endfor %}
                                         </div>
                                     {% endif %}
-                                    <p>Identity check cannot run until required fields are mapped or approved.</p>
+                                    {% if result.override_forms %}
+                                        <div class="validation-panel__section">
+                                            <span class="validation-panel__label">Required-field override</span>
+                                            {% for override_form in result.override_forms %}
+                                                <form class="override-form" method="post" action="{{ url_for('web.override_balance_sheet_required_field') }}">
+                                                    <input type="hidden" name="statement_type" value="balance_sheet">
+                                                    <input type="hidden" name="canonical_label" value="{{ override_form.canonical_label }}">
+                                                    <input type="hidden" name="period_count" value="{{ override_form.periods | length }}">
+                                                    <div class="override-form__header">
+                                                        <span>{{ override_form.display_label }}</span>
+                                                        <button class="secondary-button" type="submit">Apply override</button>
+                                                    </div>
+                                                    <div class="override-form__grid">
+                                                        {% for period in override_form.periods %}
+                                                            <label>
+                                                                <span>{{ period }}</span>
+                                                                <input type="hidden" name="period_{{ loop.index0 }}" value="{{ period }}">
+                                                                <input type="number" step="any" name="value_{{ loop.index0 }}" inputmode="decimal">
+                                                            </label>
+                                                        {% endfor %}
+                                                    </div>
+                                                </form>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <p>Identity check cannot run until required fields are mapped, approved, or overridden.</p>
                                 </section>
                             {% endif %}
                         {% endif %}

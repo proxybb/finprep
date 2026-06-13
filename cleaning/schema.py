@@ -32,7 +32,7 @@ BALANCE_SHEET_EXPECTED_GROUPS = {
 }
 
 REQUIRED_METADATA_COLUMNS = {"canonical_label", "mapping_status"}
-TRUSTED_REQUIRED_MAPPING_STATUSES = {"auto_mapped", "user_approved"}
+TRUSTED_REQUIRED_MAPPING_STATUSES = {"auto_mapped", "user_approved", "user_override"}
 EXPECTED_MAPPING_STATUSES = TRUSTED_REQUIRED_MAPPING_STATUSES | {"review_only"}
 
 
