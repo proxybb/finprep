@@ -23,7 +23,6 @@ MAPPING_METADATA_COLUMNS = [
     "rollup_role",
     "review_reason",
     "includes_restricted_cash",
-    "expected_sign",
 ]
 
 _PUNCTUATION_PATTERN = re.compile(r"[^\w\s]")

@@ -151,7 +151,6 @@ def _build_override_row(
         "rollup_role": "override",
         "review_reason": "user_entered_required_field_override",
         "includes_restricted_cash": False,
-        "expected_sign": None,
     }
     for column in MAPPING_METADATA_COLUMNS:
         if column in row:
