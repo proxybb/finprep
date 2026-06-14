@@ -18,7 +18,10 @@ from cleaning.approvals import (
 )
 from cleaning.ingest import IngestionError, read_uploaded_file
 from cleaning.identities import check_balance_sheet_identity
-from cleaning.mapping import MAPPING_METADATA_COLUMNS, map_statement_rows
+from cleaning.mapping import MAPPING_METADATA_COLUMNS
+# TODO: map_statement_rows is defined in old_engine_files/generic_mapping.py and has not yet
+# been ported to the refactored cleaning.mapping package. Update this import when the
+# balance-sheet mapping module is added under cleaning/mapping/.
 from cleaning.mechanical import clean_numeric_value, run_mechanical_cleaning
 from cleaning.orientation import normalize_orientation
 from cleaning.schema import REQUIRED_BALANCE_SHEET_FIELDS, validate_balance_sheet_schema

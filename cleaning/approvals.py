@@ -6,7 +6,7 @@ from typing import Any
 
 import pandas as pd
 
-from cleaning.mapping import MAPPING_METADATA_COLUMNS, normalize_mapping_label
+from cleaning.mapping.base import MAPPING_METADATA_COLUMNS, normalize_mapping_label
 from cleaning.schema import REQUIRED_BALANCE_SHEET_FIELDS
 
 

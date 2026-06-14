@@ -7,7 +7,7 @@ from typing import Any
 
 import pandas as pd
 
-from cleaning.mapping import MAPPING_METADATA_COLUMNS
+from cleaning.mapping.base import MAPPING_METADATA_COLUMNS
 from cleaning.mechanical import clean_numeric_value
 
 

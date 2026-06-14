@@ -1,7 +1,10 @@
 import pandas as pd
 import pytest
 
-from cleaning.mapping import MAPPING_METADATA_COLUMNS, map_statement_rows
+from cleaning.mapping import MAPPING_METADATA_COLUMNS
+# TODO: map_statement_rows is defined in old_engine_files/generic_mapping.py and has not yet
+# been ported to the refactored cleaning.mapping package. Update this import when the
+# balance-sheet mapping module is added under cleaning/mapping/.
 
 
 def _map_labels(labels):
