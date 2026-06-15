@@ -18,10 +18,7 @@ from cleaning.approvals import (
 )
 from cleaning.ingest import IngestionError, read_uploaded_file
 from cleaning.identities import check_balance_sheet_identity
-from cleaning.mapping import MAPPING_METADATA_COLUMNS
-# TODO: map_statement_rows is defined in old_engine_files/generic_mapping.py and has not yet
-# been ported to the refactored cleaning.mapping package. Update this import when the
-# balance-sheet mapping module is added under cleaning/mapping/.
+from cleaning.mapping import MAPPING_METADATA_COLUMNS, map_statement_rows
 from cleaning.mechanical import clean_numeric_value, run_mechanical_cleaning
 from cleaning.orientation import normalize_orientation
 from cleaning.schema import REQUIRED_BALANCE_SHEET_FIELDS, validate_balance_sheet_schema
@@ -571,16 +568,46 @@ def _build_balance_sheet_result(
     }
 
 
+_IS_METADATA_COLUMNS = MAPPING_METADATA_COLUMNS + ["template_operator", "row_type"]
+
+
+def _income_statement_display_df(mapped_df: pd.DataFrame) -> pd.DataFrame:
+    """Build a user-facing Income Statement preview without mapping metadata columns."""
+    display_df = mapped_df.drop(
+        columns=[col for col in _IS_METADATA_COLUMNS if col in mapped_df.columns],
+        errors="ignore",
+    ).copy()
+    if display_df.empty or len(display_df.columns) == 0:
+        return display_df
+
+    label_column = display_df.columns[0]
+    if "display_label" not in mapped_df.columns:
+        return display_df
+
+    display_df[label_column] = [
+        display_label if _has_display_value(display_label) else existing_label
+        for existing_label, display_label in zip(
+            display_df[label_column].tolist(),
+            mapped_df["display_label"].tolist(),
+        )
+    ]
+    return display_df
+
+
 def _build_income_statement_result(
     oriented_df: pd.DataFrame,
     metadata: dict,
 ) -> dict[str, Any]:
-    """Return the oriented Income Statement DataFrame with no mapping applied."""
+    """Run Income Statement mapping and return display-ready data."""
+    mapped_df, _mapping_audit = map_statement_rows(
+        oriented_df, "income_statement", industry="manufacturing"
+    )
+    display_df = _income_statement_display_df(mapped_df)
     return {
         "schema_validation": None,
         "identity_check": None,
         "override_forms": [],
-        "display_df": oriented_df,
+        "display_df": display_df,
     }
 
 

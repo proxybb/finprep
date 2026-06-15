@@ -526,8 +526,8 @@ def test_clean_data_normalizes_sideways_upload_orientation():
     assert "line_item" not in html
     assert "2021" in html
     assert "2022" in html
-    assert "sales" in html
-    assert "operating income" in html
+    assert "Revenue" in html
+    assert "Operating Profit" in html
     assert "1200" in html
     assert "revenue" not in html
     assert "ebit" not in html
@@ -591,8 +591,8 @@ def test_clean_data_removes_leading_metadata_and_keeps_first_header_blank():
     assert "as of 2021" not in html.lower()
     assert "line_item" not in html
     assert "data-table__cell--missing" in html
-    assert "sales" in html
-    assert "operating income" in html
+    assert "Revenue" in html
+    assert "Operating Profit" in html
     assert "1200" in html
     assert "revenue" not in html
     assert "ebit" not in html
@@ -1453,3 +1453,144 @@ def test_cleaned_data_with_no_current_upload_shows_empty_state():
     html = response.get_data(as_text=True)
     assert "No uploaded files are available to clean." in html
     assert "Back to upload/raw preview" in html
+
+
+# === Income Statement route wiring tests ===
+
+
+def _income_statement_mapping_csv() -> BytesIO:
+    return BytesIO(
+        b"Line Item,2022,2023\n"
+        b"Turnover,1000,1100\n"
+        b"Cost of Sales,-400,-440\n"
+        b"Gross Profit,600,660\n"
+        b"Net Income,200,220\n"
+    )
+
+
+def _income_statement_negative_values_csv() -> BytesIO:
+    return BytesIO(
+        b"Line Item,2022,2023\n"
+        b"Revenue,1000,1100\n"
+        b"Cost of Sales,-400,-440\n"
+        b"Net Income,200,220\n"
+    )
+
+
+def test_income_statement_cleaned_preview_applies_is_mapping():
+    client = _client()
+
+    upload_response = client.post(
+        "/data/upload",
+        data={"income_statement": (_income_statement_mapping_csv(), "income-mapped.csv")},
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "income-mapped.csv" in html
+    assert "Cleaned Data Preview" in html
+    assert "Income Statement cleaned preview" in html
+    assert "4 rows x 3 columns" in html
+
+
+def test_income_statement_cleaned_preview_hides_mapping_metadata_columns():
+    client = _client()
+
+    client.post(
+        "/data/upload",
+        data={"income_statement": (_income_statement_mapping_csv(), "income-meta.csv")},
+        content_type="multipart/form-data",
+    )
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    table_card = _extract_expandable_table_card(html, "income-meta.csv")
+    for col in [
+        "canonical_label",
+        "mapping_status",
+        "normalized_label",
+        "original_label",
+        "matched_alias",
+        "matched_rule_kind",
+        "concept_category",
+        "concept_family",
+        "rollup_role",
+        "review_reason",
+        "includes_restricted_cash",
+        "template_operator",
+        "row_type",
+    ]:
+        assert col not in table_card, f"Metadata column leaked into display: {col}"
+
+
+def test_income_statement_cleaned_preview_shows_display_labels_not_canonical():
+    client = _client()
+
+    client.post(
+        "/data/upload",
+        data={"income_statement": (_income_statement_mapping_csv(), "income-labels.csv")},
+        content_type="multipart/form-data",
+    )
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    table_card = _extract_expandable_table_card(html, "income-labels.csv")
+    assert "Revenue" in table_card
+    assert "Turnover" not in table_card
+    assert "revenue" not in table_card
+    assert "Cost of Sales" in table_card
+    assert "Gross Profit" in table_card
+    assert "Net Income" in table_card
+
+
+def test_income_statement_cleaned_preview_preserves_period_values_and_signs():
+    client = _client()
+
+    client.post(
+        "/data/upload",
+        data={
+            "income_statement": (_income_statement_negative_values_csv(), "income-values.csv")
+        },
+        content_type="multipart/form-data",
+    )
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "1000" in html
+    assert "1100" in html
+    assert "-400" in html
+    assert "-440" in html
+    assert "200" in html
+    assert "220" in html
+
+
+def test_balance_sheet_cleaned_preview_behavior_not_changed_by_is_wiring():
+    client = _client()
+
+    client.post(
+        "/data/upload",
+        data={
+            "income_statement": (_income_statement_mapping_csv(), "income-both.csv"),
+            "balance_sheet": (_balance_sheet_mapping_csv(), "balance-both.csv"),
+        },
+        content_type="multipart/form-data",
+    )
+
+    response = client.get("/data/cleaned")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "income-both.csv" in html
+    assert "balance-both.csv" in html
+    assert "Revenue" in html
+    assert "canonical_label" not in html
