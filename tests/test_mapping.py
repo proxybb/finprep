@@ -416,3 +416,222 @@ def test_g19_unsupported_statement_type_raises_value_error():
     df = pd.DataFrame({"line_item": ["revenue"], "2022": [100]})
     with pytest.raises(ValueError):
         map_statement_rows(df, "cash_flow_statement")
+
+
+# === Group 20 — BS Liabilities auto-map exact matches ===
+
+@pytest.mark.parametrize("alias,expected_canonical", [
+    ("trade and other payables", "trade_and_other_payables"),
+    ("total current liabilities", "current_liabilities"),
+    ("current liabilities", "current_liabilities"),
+    ("total non-current liabilities", "non_current_liabilities"),
+    ("non-current liabilities", "non_current_liabilities"),
+    ("total liabilities", "total_liabilities"),
+])
+def test_g20_liabilities_auto_map_exact_matches(alias, expected_canonical):
+    mapped_df, _ = _map_bs([alias])
+    assert mapped_df.loc[0, "mapping_status"] == "auto_mapped"
+    assert mapped_df.loc[0, "canonical_label"] == expected_canonical
+
+
+# === Group 21 — Trade payables canonical candidate ===
+
+def test_g21_trade_payables_is_review_only():
+    mapped_df, _ = _map_bs(["trade payables"])
+    assert mapped_df.loc[0, "mapping_status"] == "review_only"
+
+
+def test_g21_trade_payables_canonical_label_is_null():
+    mapped_df, _ = _map_bs(["trade payables"])
+    assert pd.isna(mapped_df.loc[0, "canonical_label"])
+
+
+def test_g21_trade_payables_concept_family():
+    mapped_df, _ = _map_bs(["trade payables"])
+    assert mapped_df.loc[0, "concept_family"] == "trade_and_other_payables"
+
+
+def test_g21_trade_payables_suggested_section():
+    mapped_df, _ = _map_bs(["trade payables"])
+    assert mapped_df.loc[0, "suggested_section"] == "current_liabilities"
+
+
+def test_g21_trade_payables_review_reason():
+    mapped_df, _ = _map_bs(["trade payables"])
+    assert mapped_df.loc[0, "review_reason"] == "narrow_payables_label"
+
+
+# === Group 22 — Current liability dynamic candidates ===
+
+@pytest.mark.parametrize("alias", [
+    "contract liabilities",
+    "current provisions",
+    "current income tax liabilities",
+    "short-term debt and current maturities of long-term debt",
+    "accruals",
+])
+def test_g22_current_liability_candidates_are_review_only(alias):
+    mapped_df, _ = _map_bs([alias])
+    assert mapped_df.loc[0, "mapping_status"] == "review_only"
+    assert mapped_df.loc[0, "concept_family"] == "current_liabilities"
+    assert mapped_df.loc[0, "suggested_section"] == "current_liabilities"
+    assert mapped_df.loc[0, "review_reason"] == "liability_component"
+
+
+# === Group 23 — Non-current liability dynamic candidates ===
+
+@pytest.mark.parametrize("alias", [
+    "long-term debt",
+    "deferred tax liabilities",
+    "other non-current liabilities",
+])
+def test_g23_non_current_liability_candidates_are_review_only(alias):
+    mapped_df, _ = _map_bs([alias])
+    assert mapped_df.loc[0, "mapping_status"] == "review_only"
+    assert mapped_df.loc[0, "concept_family"] == "non_current_liabilities"
+    assert mapped_df.loc[0, "suggested_section"] == "non_current_liabilities"
+    assert mapped_df.loc[0, "review_reason"] == "liability_component"
+
+
+# === Group 24 — Ambiguous liability dynamic candidates ===
+
+@pytest.mark.parametrize("alias", [
+    "financial debt",
+    "provisions",
+])
+def test_g24_ambiguous_liabilities_are_review_only_with_null_section(alias):
+    mapped_df, _ = _map_bs([alias])
+    assert mapped_df.loc[0, "mapping_status"] == "review_only"
+    assert mapped_df.loc[0, "concept_family"] == "liabilities"
+    assert pd.isna(mapped_df.loc[0, "suggested_section"])
+    assert mapped_df.loc[0, "review_reason"] == "liability_section_ambiguous"
+
+
+# === Group 25 — BS Equity auto-map exact matches ===
+
+@pytest.mark.parametrize("alias,expected_canonical", [
+    ("total equity attributable to shareholders of the parent", "equity_attributable_to_owners"),
+    ("equity attributable to owners of the parent", "equity_attributable_to_owners"),
+    ("non-controlling interests", "non_controlling_interests"),
+    ("noncontrolling interests", "non_controlling_interests"),
+    ("total equity", "total_equity"),
+])
+def test_g25_equity_auto_map_exact_matches(alias, expected_canonical):
+    mapped_df, _ = _map_bs([alias])
+    assert mapped_df.loc[0, "mapping_status"] == "auto_mapped"
+    assert mapped_df.loc[0, "canonical_label"] == expected_canonical
+
+
+# === Group 26 — Equity review-only ===
+
+def test_g26_siemens_equity_is_review_only():
+    mapped_df, _ = _map_bs(["total equity attributable to shareholders of siemens ag"])
+    assert mapped_df.loc[0, "mapping_status"] == "review_only"
+
+
+def test_g26_siemens_equity_concept_family():
+    mapped_df, _ = _map_bs(["total equity attributable to shareholders of siemens ag"])
+    assert mapped_df.loc[0, "concept_family"] == "equity_attributable_to_owners"
+
+
+def test_g26_siemens_equity_suggested_section():
+    mapped_df, _ = _map_bs(["total equity attributable to shareholders of siemens ag"])
+    assert mapped_df.loc[0, "suggested_section"] == "equity"
+
+
+def test_g26_siemens_equity_review_reason():
+    mapped_df, _ = _map_bs(["total equity attributable to shareholders of siemens ag"])
+    assert mapped_df.loc[0, "review_reason"] == "company_specific_owner_equity_label"
+
+
+def test_g26_retained_earnings_is_review_only_equity_component():
+    mapped_df, _ = _map_bs(["retained earnings"])
+    assert mapped_df.loc[0, "mapping_status"] == "review_only"
+    assert mapped_df.loc[0, "concept_family"] == "equity"
+    assert mapped_df.loc[0, "suggested_section"] == "equity"
+    assert mapped_df.loc[0, "review_reason"] == "equity_component"
+
+
+# === Group 27 — Duplicate L&E label preservation ===
+
+def test_g27_duplicate_ambiguous_liability_labels_both_rows_present():
+    labels = ["debt", "debt"]
+    mapped_df, _ = _map_bs(labels)
+    assert len(mapped_df) == 2
+
+
+def test_g27_duplicate_ambiguous_liability_labels_row_order_preserved():
+    labels = ["debt", "debt"]
+    mapped_df, _ = _map_bs(labels)
+    assert mapped_df["line_item"].tolist() == labels
+
+
+def test_g27_duplicate_ambiguous_liability_labels_values_unchanged():
+    labels = ["debt", "debt"]
+    values = [500, 600]
+    mapped_df, _ = _map_bs(labels, values)
+    assert mapped_df["2022"].tolist() == values
+
+
+def test_g27_duplicate_ambiguous_liability_labels_both_review_only():
+    labels = ["debt", "debt"]
+    mapped_df, _ = _map_bs(labels)
+    assert mapped_df.loc[0, "mapping_status"] == "review_only"
+    assert mapped_df.loc[1, "mapping_status"] == "review_only"
+
+
+def test_g27_duplicate_ambiguous_liability_labels_suggested_section_is_null():
+    labels = ["debt", "debt"]
+    mapped_df, _ = _map_bs(labels)
+    assert pd.isna(mapped_df.loc[0, "suggested_section"])
+    assert pd.isna(mapped_df.loc[1, "suggested_section"])
+
+
+# === Group 28 — BS L&E metadata completeness ===
+
+def test_g28_le_output_has_suggested_section_column():
+    labels = ["total liabilities", "total equity", "debt"]
+    mapped_df, _ = _map_bs(labels)
+    assert "suggested_section" in mapped_df.columns
+
+
+def test_g28_bs_assets_tests_still_pass_after_le_implementation():
+    labels = ["total assets", "cash and cash equivalents", "total current assets"]
+    mapped_df, _ = _map_bs(labels)
+    assert mapped_df.loc[0, "canonical_label"] == "total_assets"
+    assert mapped_df.loc[1, "canonical_label"] == "cash_and_cash_equivalents"
+    assert mapped_df.loc[2, "canonical_label"] == "current_assets"
+
+
+def test_g28_is_tests_still_pass_after_le_implementation():
+    labels = ["revenue", "cost of sales", "net income"]
+    mapped_df, _ = _map_is(labels)
+    assert mapped_df.loc[0, "canonical_label"] == "revenue"
+    assert mapped_df.loc[1, "canonical_label"] == "cogs"
+    assert mapped_df.loc[2, "canonical_label"] == "net_income"
+
+
+# === Group 29 — Substring collision guards ===
+
+def test_g29_current_liabilities_auto_maps_not_other_current():
+    mapped_df, _ = _map_bs(["current liabilities"])
+    assert mapped_df.loc[0, "mapping_status"] == "auto_mapped"
+    assert mapped_df.loc[0, "canonical_label"] == "current_liabilities"
+
+
+def test_g29_other_current_liabilities_is_review_only_not_auto_mapped():
+    mapped_df, _ = _map_bs(["other current liabilities"])
+    assert mapped_df.loc[0, "mapping_status"] == "review_only"
+    assert pd.isna(mapped_df.loc[0, "canonical_label"])
+
+
+def test_g29_non_current_liabilities_auto_maps():
+    mapped_df, _ = _map_bs(["non-current liabilities"])
+    assert mapped_df.loc[0, "mapping_status"] == "auto_mapped"
+    assert mapped_df.loc[0, "canonical_label"] == "non_current_liabilities"
+
+
+def test_g29_other_non_current_liabilities_is_review_only_not_auto_mapped():
+    mapped_df, _ = _map_bs(["other non-current liabilities"])
+    assert mapped_df.loc[0, "mapping_status"] == "review_only"
+    assert pd.isna(mapped_df.loc[0, "canonical_label"])

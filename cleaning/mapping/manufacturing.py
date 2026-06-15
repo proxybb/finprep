@@ -652,6 +652,187 @@ _add_bs_review_rules(
     suggested_section="current_assets",
 )
 
+# === BS LIABILITIES AUTO-MAP RULES ===
+
+_add_bs_auto_rules(
+    ("trade and other payables",),
+    canonical_label="trade_and_other_payables",
+    display_label="Trade and Other Payables",
+    concept_category="reported_concept",
+    concept_family="current_liabilities",
+    rollup_role="component",
+    suggested_section="current_liabilities",
+)
+
+_add_bs_auto_rules(
+    ("total current liabilities", "current liabilities"),
+    canonical_label="current_liabilities",
+    display_label="Total Current Liabilities",
+    concept_category="reported_concept",
+    concept_family="current_liabilities",
+    rollup_role="subtotal",
+    suggested_section="current_liabilities",
+)
+
+# "total non-current liabilities" and "non-current liabilities" normalize to
+# "total non current liabilities" and "non current liabilities" (hyphen → space).
+_add_bs_auto_rules(
+    ("total non current liabilities", "non current liabilities"),
+    canonical_label="non_current_liabilities",
+    display_label="Total Non-current Liabilities",
+    concept_category="reported_concept",
+    concept_family="non_current_liabilities",
+    rollup_role="subtotal",
+    suggested_section="non_current_liabilities",
+)
+
+_add_bs_auto_rules(
+    ("total liabilities",),
+    canonical_label="total_liabilities",
+    display_label="Total Liabilities",
+    concept_category="reported_concept",
+    concept_family="liabilities",
+    rollup_role="total",
+    suggested_section="liabilities",
+)
+
+# === BS LIABILITIES REVIEW-ONLY RULES ===
+
+# Canonical-candidate review-only row
+_add_bs_review_rules(
+    ("trade payables",),
+    review_reason="narrow_payables_label",
+    concept_category="reported_concept",
+    concept_family="trade_and_other_payables",
+    rollup_role="component",
+    suggested_section="current_liabilities",
+)
+
+# Current liability dynamic candidates
+# "short-term debt and current maturities of long-term debt" normalizes to
+# "short term debt and current maturities of long term debt" (hyphen → space).
+_add_bs_review_rules(
+    (
+        "contract liabilities",
+        "current provisions",
+        "current income tax liabilities",
+        "other current liabilities",
+        "other current financial liabilities",
+        "short term debt and current maturities of long term debt",
+        "short term debt",
+        "current portion of long term debt",
+        "accruals",
+        "accrued expenses",
+    ),
+    review_reason="liability_component",
+    concept_category="reported_concept",
+    concept_family="current_liabilities",
+    rollup_role="component",
+    suggested_section="current_liabilities",
+)
+
+# Non-current liability dynamic candidates
+# "long-term debt", "non-current provisions", etc. normalize to their space forms.
+_add_bs_review_rules(
+    (
+        "long term debt",
+        "deferred tax liabilities",
+        "non current provisions",
+        "other non current liabilities",
+        "other non current financial liabilities",
+    ),
+    review_reason="liability_component",
+    concept_category="reported_concept",
+    concept_family="non_current_liabilities",
+    rollup_role="component",
+    suggested_section="non_current_liabilities",
+)
+
+# Ambiguous liability dynamic candidates
+_add_bs_review_rules(
+    (
+        "financial debt",
+        "provisions",
+        "financial liabilities",
+        "other financial liabilities",
+        "borrowings",
+        "debt",
+    ),
+    review_reason="liability_section_ambiguous",
+    concept_category="reported_concept",
+    concept_family="liabilities",
+    rollup_role="component",
+    suggested_section=None,
+)
+
+# === BS EQUITY AUTO-MAP RULES ===
+
+_add_bs_auto_rules(
+    (
+        "total equity attributable to shareholders of the parent",
+        "equity attributable to owners of the parent",
+        "equity attributable to shareholders of the parent",
+        "equity attributable to owners",
+    ),
+    canonical_label="equity_attributable_to_owners",
+    display_label="Equity Attributable to Owners",
+    concept_category="reported_concept",
+    concept_family="equity",
+    rollup_role="component",
+    suggested_section="equity",
+)
+
+# "non-controlling interests" normalizes to "non controlling interests" (hyphen → space).
+_add_bs_auto_rules(
+    ("non controlling interests", "noncontrolling interests"),
+    canonical_label="non_controlling_interests",
+    display_label="Non-controlling Interests",
+    concept_category="reported_concept",
+    concept_family="equity",
+    rollup_role="component",
+    suggested_section="equity",
+)
+
+_add_bs_auto_rules(
+    ("total equity",),
+    canonical_label="total_equity",
+    display_label="Total Equity",
+    concept_category="reported_concept",
+    concept_family="equity",
+    rollup_role="total",
+    suggested_section="equity",
+)
+
+# === BS EQUITY REVIEW-ONLY RULES ===
+
+# Company-specific owner equity label (canonical candidate, exact match only)
+_add_bs_review_rules(
+    ("total equity attributable to shareholders of siemens ag",),
+    review_reason="company_specific_owner_equity_label",
+    concept_category="reported_concept",
+    concept_family="equity_attributable_to_owners",
+    rollup_role="component",
+    suggested_section="equity",
+)
+
+# Equity component dynamic candidates
+_add_bs_review_rules(
+    (
+        "retained earnings",
+        "share capital",
+        "issued capital",
+        "capital reserves",
+        "other reserves",
+        "treasury shares",
+        "accumulated other comprehensive income",
+    ),
+    review_reason="equity_component",
+    concept_category="reported_concept",
+    concept_family="equity",
+    rollup_role="component",
+    suggested_section="equity",
+)
+
 _IS_EXTRA_COLUMNS = ["template_operator", "row_type"]
 _BS_EXTRA_COLUMNS = ["suggested_section"]
 
