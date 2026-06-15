@@ -1,4 +1,4 @@
-"""Manufacturing IFRS Income Statement mapping tests."""
+"""Manufacturing IFRS Income Statement and Balance Sheet mapping tests."""
 import pandas as pd
 import pytest
 
@@ -10,6 +10,13 @@ def _map_is(labels, values=None):
         values = [100] * len(labels)
     df = pd.DataFrame({"line_item": labels, "2022": values})
     return map_statement_rows(df, "income_statement")
+
+
+def _map_bs(labels, values=None):
+    if values is None:
+        values = [100] * len(labels)
+    df = pd.DataFrame({"line_item": labels, "2022": values})
+    return map_statement_rows(df, "balance_sheet")
 
 
 # === Group 1 — Basic auto-map exact matches ===
@@ -141,10 +148,10 @@ def test_g6_operating_profit_aliases_all_map_to_operating_profit(alias):
 
 # === Group 7 — Statement type isolation ===
 
-def test_g7_balance_sheet_statement_type_raises_value_error():
+def test_g7_unsupported_statement_type_raises_value_error():
     df = pd.DataFrame({"line_item": ["revenue"], "2022": [100]})
-    with pytest.raises(ValueError, match="balance_sheet"):
-        map_statement_rows(df, "balance_sheet")
+    with pytest.raises(ValueError):
+        map_statement_rows(df, "cash_flow_statement")
 
 
 def test_g7_banking_industry_raises_value_error():
@@ -239,3 +246,173 @@ def test_g10_marketing_and_administration_expenses_is_review_only_not_deferred()
     mapped_df, _ = _map_is(["marketing and administration expenses"])
     assert mapped_df.loc[0, "mapping_status"] == "review_only"
     assert mapped_df.loc[0, "mapping_status"] != "deferred"
+
+
+# === Group 11 — BS auto-map exact matches ===
+
+@pytest.mark.parametrize("alias,expected_canonical", [
+    ("cash and cash equivalents", "cash_and_cash_equivalents"),
+    ("inventories", "inventory"),
+    ("trade and other receivables", "trade_and_other_receivables"),
+    ("total current assets", "current_assets"),
+    ("property, plant and equipment", "ppe"),
+    ("other intangible assets", "intangible_assets"),
+    ("total non-current assets", "non_current_assets"),
+    ("total assets", "total_assets"),
+])
+def test_g11_bs_auto_map_exact_matches(alias, expected_canonical):
+    mapped_df, _ = _map_bs([alias])
+    assert mapped_df.loc[0, "mapping_status"] == "auto_mapped"
+    assert mapped_df.loc[0, "canonical_label"] == expected_canonical
+
+
+# === Group 12 — BS review-only canonical candidates ===
+
+def test_g12_trade_receivables_is_review_only():
+    mapped_df, _ = _map_bs(["trade receivables"])
+    assert mapped_df.loc[0, "mapping_status"] == "review_only"
+    assert mapped_df.loc[0, "concept_family"] == "trade_and_other_receivables"
+    assert mapped_df.loc[0, "suggested_section"] == "current_assets"
+    assert mapped_df.loc[0, "review_reason"] == "narrow_receivables_label"
+
+
+# === Group 13 — Goodwill ===
+
+def test_g13_goodwill_is_review_only():
+    mapped_df, _ = _map_bs(["goodwill"])
+    assert mapped_df.loc[0, "mapping_status"] == "review_only"
+
+
+def test_g13_goodwill_does_not_map_to_intangible_assets():
+    mapped_df, _ = _map_bs(["goodwill"])
+    assert mapped_df.loc[0, "canonical_label"] != "intangible_assets"
+    assert pd.isna(mapped_df.loc[0, "canonical_label"])
+
+
+def test_g13_goodwill_suggested_section_is_non_current_assets():
+    mapped_df, _ = _map_bs(["goodwill"])
+    assert mapped_df.loc[0, "suggested_section"] == "non_current_assets"
+
+
+def test_g13_goodwill_review_reason():
+    mapped_df, _ = _map_bs(["goodwill"])
+    assert mapped_df.loc[0, "review_reason"] == "separate_intangible_component"
+
+
+# === Group 14 — Ambiguous financial assets ===
+
+def test_g14_financial_assets_is_review_only():
+    mapped_df, _ = _map_bs(["financial assets"])
+    assert mapped_df.loc[0, "mapping_status"] == "review_only"
+
+
+def test_g14_financial_assets_suggested_section_is_null():
+    mapped_df, _ = _map_bs(["financial assets"])
+    assert pd.isna(mapped_df.loc[0, "suggested_section"])
+
+
+def test_g14_financial_assets_review_reason():
+    mapped_df, _ = _map_bs(["financial assets"])
+    assert mapped_df.loc[0, "review_reason"] == "financial_asset_section_ambiguous"
+
+
+# === Group 15 — Suggested sections ===
+
+def test_g15_prepayments_suggested_section_is_current_assets():
+    mapped_df, _ = _map_bs(["prepayments"])
+    assert mapped_df.loc[0, "suggested_section"] == "current_assets"
+
+
+def test_g15_deferred_tax_assets_suggested_section_is_non_current_assets():
+    mapped_df, _ = _map_bs(["deferred tax assets"])
+    assert mapped_df.loc[0, "suggested_section"] == "non_current_assets"
+
+
+def test_g15_other_current_financial_assets_suggested_section_is_current_assets():
+    mapped_df, _ = _map_bs(["other current financial assets"])
+    assert mapped_df.loc[0, "suggested_section"] == "current_assets"
+
+
+# === Group 16 — Duplicate label preservation ===
+
+def test_g16_duplicate_labels_both_rows_present():
+    labels = ["financial assets", "financial assets"]
+    mapped_df, _ = _map_bs(labels)
+    assert len(mapped_df) == 2
+
+
+def test_g16_duplicate_labels_row_order_preserved():
+    labels = ["financial assets", "financial assets"]
+    mapped_df, _ = _map_bs(labels)
+    assert mapped_df["line_item"].tolist() == labels
+
+
+def test_g16_duplicate_labels_values_unchanged():
+    labels = ["financial assets", "financial assets"]
+    values = [100, 200]
+    mapped_df, _ = _map_bs(labels, values)
+    assert mapped_df["2022"].tolist() == values
+
+
+def test_g16_duplicate_labels_both_mapped_same_way():
+    labels = ["financial assets", "financial assets"]
+    mapped_df, _ = _map_bs(labels)
+    assert mapped_df.loc[0, "mapping_status"] == "review_only"
+    assert mapped_df.loc[1, "mapping_status"] == "review_only"
+
+
+# === Group 17 — BS unmapped ===
+
+def test_g17_unknown_bs_label_becomes_unmapped():
+    mapped_df, _ = _map_bs(["some completely unknown asset label"])
+    assert mapped_df.loc[0, "mapping_status"] == "unmapped"
+
+
+def test_g17_unknown_bs_label_suggested_section_is_null():
+    mapped_df, _ = _map_bs(["some completely unknown asset label"])
+    assert pd.isna(mapped_df.loc[0, "suggested_section"])
+
+
+# === Group 18 — BS metadata completeness ===
+
+def test_g18_bs_output_has_all_base_metadata_columns():
+    df = pd.DataFrame({"line_item": ["cash and cash equivalents", "unknown"], "2022": [100, 50]})
+    mapped_df, _ = map_statement_rows(df, "balance_sheet")
+    for col in MAPPING_METADATA_COLUMNS:
+        assert col in mapped_df.columns, f"Missing column: {col}"
+
+
+def test_g18_bs_output_has_suggested_section_column():
+    df = pd.DataFrame({"line_item": ["cash and cash equivalents", "unknown"], "2022": [100, 50]})
+    mapped_df, _ = map_statement_rows(df, "balance_sheet")
+    assert "suggested_section" in mapped_df.columns
+
+
+def test_g18_bs_audit_records_have_base_metadata_keys():
+    df = pd.DataFrame({"line_item": ["cash and cash equivalents", "unknown"], "2022": [100, 50]})
+    _, audit_records = map_statement_rows(df, "balance_sheet")
+    assert len(audit_records) == 2
+    for record in audit_records:
+        for col in MAPPING_METADATA_COLUMNS:
+            assert col in record, f"Audit record missing key: {col}"
+
+
+def test_g18_is_tests_still_pass_after_bs_implementation():
+    mapped_df, _ = _map_is(["revenue", "cost of sales", "net income"])
+    assert mapped_df.loc[0, "canonical_label"] == "revenue"
+    assert mapped_df.loc[1, "canonical_label"] == "cogs"
+    assert mapped_df.loc[2, "canonical_label"] == "net_income"
+
+
+# === Group 19 — Statement type behavior ===
+
+def test_g19_balance_sheet_does_not_raise_value_error():
+    df = pd.DataFrame({"line_item": ["cash and cash equivalents"], "2022": [100]})
+    result = map_statement_rows(df, "balance_sheet")
+    assert result is not None
+
+
+def test_g19_unsupported_statement_type_raises_value_error():
+    df = pd.DataFrame({"line_item": ["revenue"], "2022": [100]})
+    with pytest.raises(ValueError):
+        map_statement_rows(df, "cash_flow_statement")

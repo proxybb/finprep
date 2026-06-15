@@ -20,7 +20,22 @@ _UNMAPPED_RULE: dict = {
     "row_type": None,
 }
 
+_BS_UNMAPPED_RULE: dict = {
+    "mapping_status": "unmapped",
+    "canonical_label": None,
+    "display_label": None,
+    "matched_alias": None,
+    "matched_rule_kind": "unmapped",
+    "concept_category": None,
+    "concept_family": None,
+    "rollup_role": None,
+    "review_reason": None,
+    "includes_restricted_cash": False,
+    "suggested_section": None,
+}
+
 _IS_LABEL_RULES: dict[str, dict] = {}
+_BS_LABEL_RULES: dict[str, dict] = {}
 
 
 def _add_auto_rules(
@@ -76,7 +91,58 @@ def _add_review_rules(
         }
 
 
-# === AUTO-MAP RULES ===
+def _add_bs_auto_rules(
+    aliases: tuple[str, ...],
+    *,
+    canonical_label: str,
+    display_label: str,
+    concept_category: str,
+    concept_family: str,
+    rollup_role: str,
+    suggested_section: str | None,
+) -> None:
+    for alias in aliases:
+        _BS_LABEL_RULES[alias] = {
+            "mapping_status": "auto_mapped",
+            "canonical_label": canonical_label,
+            "display_label": display_label,
+            "matched_alias": alias,
+            "matched_rule_kind": "auto_map",
+            "concept_category": concept_category,
+            "concept_family": concept_family,
+            "rollup_role": rollup_role,
+            "review_reason": None,
+            "includes_restricted_cash": False,
+            "suggested_section": suggested_section,
+        }
+
+
+def _add_bs_review_rules(
+    aliases: tuple[str, ...],
+    *,
+    review_reason: str,
+    concept_category: str | None = None,
+    concept_family: str | None = None,
+    rollup_role: str | None = None,
+    suggested_section: str | None = None,
+) -> None:
+    for alias in aliases:
+        _BS_LABEL_RULES[alias] = {
+            "mapping_status": "review_only",
+            "canonical_label": None,
+            "display_label": None,
+            "matched_alias": alias,
+            "matched_rule_kind": "review_only",
+            "concept_category": concept_category,
+            "concept_family": concept_family,
+            "rollup_role": rollup_role,
+            "review_reason": review_reason,
+            "includes_restricted_cash": False,
+            "suggested_section": suggested_section,
+        }
+
+
+# === IS AUTO-MAP RULES ===
 
 _add_auto_rules(
     ("revenue", "total revenue", "group revenue", "sales", "net sales", "turnover", "net revenue"),
@@ -276,7 +342,7 @@ _add_auto_rules(
     row_type="supplementary",
 )
 
-# === D&A — review_only despite having aliases ===
+# === IS REVIEW-ONLY RULES ===
 # "depreciation & amortization" and "depreciation & amortisation" normalize to
 # "depreciation and amortization" and "depreciation and amortisation" respectively.
 
@@ -288,7 +354,6 @@ _add_review_rules(
     review_reason="placement_ambiguous",
 )
 
-# === REVIEW-ONLY RULES ===
 # "gross margin %" normalizes to "gross margin" due to punctuation stripping,
 # so only one entry is stored; the ratio_or_monetary_ambiguous reason covers both inputs.
 
@@ -351,8 +416,244 @@ _add_review_rules(
     review_reason="narrow_revenue_subtype",
 )
 
-_EXTRA_COLUMNS = ["template_operator", "row_type"]
-_ALL_COLUMNS = MAPPING_METADATA_COLUMNS + _EXTRA_COLUMNS
+# === BS AUTO-MAP RULES ===
+# Aliases are stored in normalized form (post-normalize_mapping_label).
+
+_add_bs_auto_rules(
+    ("cash and cash equivalents",),
+    canonical_label="cash_and_cash_equivalents",
+    display_label="Cash and Cash Equivalents",
+    concept_category="reported_concept",
+    concept_family="current_assets",
+    rollup_role="component",
+    suggested_section="current_assets",
+)
+
+_add_bs_auto_rules(
+    ("inventories", "inventory"),
+    canonical_label="inventory",
+    display_label="Inventories",
+    concept_category="reported_concept",
+    concept_family="current_assets",
+    rollup_role="component",
+    suggested_section="current_assets",
+)
+
+_add_bs_auto_rules(
+    ("trade and other receivables",),
+    canonical_label="trade_and_other_receivables",
+    display_label="Trade and Other Receivables",
+    concept_category="reported_concept",
+    concept_family="current_assets",
+    rollup_role="component",
+    suggested_section="current_assets",
+)
+
+_add_bs_auto_rules(
+    ("total current assets", "current assets"),
+    canonical_label="current_assets",
+    display_label="Total Current Assets",
+    concept_category="reported_concept",
+    concept_family="current_assets",
+    rollup_role="subtotal",
+    suggested_section="current_assets",
+)
+
+# "Property, plant and equipment" normalizes to "property plant and equipment"
+# (comma → space, then deduplicate spaces).
+_add_bs_auto_rules(
+    ("property plant and equipment",),
+    canonical_label="ppe",
+    display_label="Property, Plant and Equipment",
+    concept_category="reported_concept",
+    concept_family="non_current_assets",
+    rollup_role="component",
+    suggested_section="non_current_assets",
+)
+
+_add_bs_auto_rules(
+    ("intangible assets", "other intangible assets"),
+    canonical_label="intangible_assets",
+    display_label="Intangible Assets",
+    concept_category="reported_concept",
+    concept_family="non_current_assets",
+    rollup_role="component",
+    suggested_section="non_current_assets",
+)
+
+# "total non-current assets" and "non-current assets" normalize to
+# "total non current assets" and "non current assets" (hyphen → space).
+_add_bs_auto_rules(
+    ("total non current assets", "non current assets"),
+    canonical_label="non_current_assets",
+    display_label="Total Non-current Assets",
+    concept_category="reported_concept",
+    concept_family="non_current_assets",
+    rollup_role="subtotal",
+    suggested_section="non_current_assets",
+)
+
+_add_bs_auto_rules(
+    ("total assets",),
+    canonical_label="total_assets",
+    display_label="Total Assets",
+    concept_category="reported_concept",
+    concept_family="assets",
+    rollup_role="total",
+    suggested_section="assets",
+)
+
+# === BS REVIEW-ONLY RULES ===
+
+# Canonical-candidate review-only rows
+_add_bs_review_rules(
+    ("trade receivables",),
+    review_reason="narrow_receivables_label",
+    concept_category="reported_concept",
+    concept_family="trade_and_other_receivables",
+    rollup_role="component",
+    suggested_section="current_assets",
+)
+
+_add_bs_review_rules(
+    ("other receivables",),
+    review_reason="narrow_receivables_label",
+    concept_category="reported_concept",
+    concept_family="trade_and_other_receivables",
+    rollup_role="component",
+    suggested_section="current_assets",
+)
+
+# Dynamic-section review-only rows
+_add_bs_review_rules(
+    ("goodwill",),
+    review_reason="separate_intangible_component",
+    concept_category="reported_concept",
+    concept_family="non_current_assets",
+    rollup_role="component",
+    suggested_section="non_current_assets",
+)
+
+_add_bs_review_rules(
+    ("prepayments",),
+    review_reason="prepayment_asset",
+    concept_category="reported_concept",
+    concept_family="current_assets",
+    rollup_role="component",
+    suggested_section="current_assets",
+)
+
+_add_bs_review_rules(
+    ("contract assets",),
+    review_reason="contract_balance",
+    concept_category="reported_concept",
+    concept_family="current_assets",
+    rollup_role="component",
+    suggested_section="current_assets",
+)
+
+_add_bs_review_rules(
+    ("current income tax assets",),
+    review_reason="tax_asset",
+    concept_category="reported_concept",
+    concept_family="current_assets",
+    rollup_role="component",
+    suggested_section="current_assets",
+)
+
+_add_bs_review_rules(
+    ("deferred tax assets",),
+    review_reason="tax_asset",
+    concept_category="reported_concept",
+    concept_family="non_current_assets",
+    rollup_role="component",
+    suggested_section="non_current_assets",
+)
+
+_add_bs_review_rules(
+    ("other current assets",),
+    review_reason="broad_other_asset",
+    concept_category="reported_concept",
+    concept_family="current_assets",
+    rollup_role="component",
+    suggested_section="current_assets",
+)
+
+# "short-term investments" normalizes to "short term investments" (hyphen → space).
+_add_bs_review_rules(
+    ("short term investments",),
+    review_reason="investment_asset",
+    concept_category="reported_concept",
+    concept_family="current_assets",
+    rollup_role="component",
+    suggested_section="current_assets",
+)
+
+_add_bs_review_rules(
+    ("assets held for sale",),
+    review_reason="disposal_group_or_non_core_asset",
+    concept_category="reported_concept",
+    concept_family="current_assets",
+    rollup_role="component",
+    suggested_section="current_assets",
+)
+
+_add_bs_review_rules(
+    ("investment property",),
+    review_reason="separate_non_current_asset",
+    concept_category="reported_concept",
+    concept_family="non_current_assets",
+    rollup_role="component",
+    suggested_section="non_current_assets",
+)
+
+_add_bs_review_rules(
+    ("investments in associates and joint ventures",),
+    review_reason="investment_or_associate_item",
+    concept_category="reported_concept",
+    concept_family="non_current_assets",
+    rollup_role="component",
+    suggested_section="non_current_assets",
+)
+
+_add_bs_review_rules(
+    ("investments accounted for using the equity method",),
+    review_reason="investment_or_associate_item",
+    concept_category="reported_concept",
+    concept_family="non_current_assets",
+    rollup_role="component",
+    suggested_section="non_current_assets",
+)
+
+_add_bs_review_rules(
+    ("financial assets",),
+    review_reason="financial_asset_section_ambiguous",
+    concept_category="reported_concept",
+    concept_family="assets",
+    rollup_role="component",
+    suggested_section=None,
+)
+
+_add_bs_review_rules(
+    ("other financial assets",),
+    review_reason="financial_asset_section_ambiguous",
+    concept_category="reported_concept",
+    concept_family="assets",
+    rollup_role="component",
+    suggested_section=None,
+)
+
+_add_bs_review_rules(
+    ("other current financial assets",),
+    review_reason="financial_asset",
+    concept_category="reported_concept",
+    concept_family="current_assets",
+    rollup_role="component",
+    suggested_section="current_assets",
+)
+
+_IS_EXTRA_COLUMNS = ["template_operator", "row_type"]
+_BS_EXTRA_COLUMNS = ["suggested_section"]
 
 
 def map_statement_rows(
@@ -360,10 +661,10 @@ def map_statement_rows(
     statement_type: str,
     industry: str = "manufacturing",
 ) -> tuple[pd.DataFrame, list[dict]]:
-    """Map manufacturing IFRS income statement rows to canonical metadata."""
+    """Map manufacturing IFRS statement rows to canonical metadata."""
     if industry != "manufacturing":
         raise ValueError(f"industry '{industry}' is not supported.")
-    if statement_type != "income_statement":
+    if statement_type not in ("income_statement", "balance_sheet"):
         raise ValueError(
             f"statement_type '{statement_type}' is not yet supported in manufacturing mapper."
         )
@@ -371,12 +672,22 @@ def map_statement_rows(
     mapped_df = df.copy(deep=True)
     label_column = mapped_df.columns[0]
 
+    if statement_type == "income_statement":
+        label_rules = _IS_LABEL_RULES
+        unmapped_rule = _UNMAPPED_RULE
+        extra_columns = _IS_EXTRA_COLUMNS
+    else:
+        label_rules = _BS_LABEL_RULES
+        unmapped_rule = _BS_UNMAPPED_RULE
+        extra_columns = _BS_EXTRA_COLUMNS
+
+    all_columns = MAPPING_METADATA_COLUMNS + extra_columns
     audit_records: list[dict] = []
-    col_data: dict[str, list] = {col: [] for col in _ALL_COLUMNS}
+    col_data: dict[str, list] = {col: [] for col in all_columns}
 
     for row_position, original_label in enumerate(mapped_df[label_column].tolist()):
         normalized = normalize_mapping_label(original_label)
-        rule = _IS_LABEL_RULES.get(normalized, _UNMAPPED_RULE)
+        rule = label_rules.get(normalized, unmapped_rule)
 
         record: dict = {
             "original_label": original_label,
@@ -386,7 +697,7 @@ def map_statement_rows(
             **rule,
         }
         audit_records.append({k: record[k] for k in MAPPING_METADATA_COLUMNS})
-        for col in _ALL_COLUMNS:
+        for col in all_columns:
             col_data[col].append(record[col])
 
     for col, values in col_data.items():
